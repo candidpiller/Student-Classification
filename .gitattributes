@@ -1,0 +1,15 @@
+# Normalisasi line ending: file teks disimpan dengan LF di dalam repo.
+# core.autocrlf tetap berlaku saat checkout, jadi working tree di Windows
+# tidak berubah.
+* text=auto
+
+# Artefak biner tidak boleh pernah di-normalisasi line ending atau didiff.
+# classification ini eksplisit, bukan mengandalkan heuristik deteksi NUL.
+*.pkl   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.pdf   binary
+*.parquet binary
