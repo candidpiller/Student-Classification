@@ -93,13 +93,31 @@ terbaca dan instalasi gagal. Simpan sebagai UTF-8 tanpa BOM.
 **`runtime.txt` diabaikan oleh Streamlit Community Cloud.** File itu hanya dibaca
 host yang mendukungnya (Render, Railway, Fly.io). Untuk Community Cloud, versi
 Python dipilih lewat dropdown **"Python version"** di **Advanced settings** saat
-deploy, yang default-nya **3.12**.
+deploy.
 
-Untuk mencegah kegagalan, samakan versi Python dengan `requirements.txt`.
-Protobuf yang kompatibel dengan Community Cloud adalah `>=3.20,<6`; pin
-`streamlit` di `requirements.txt` agar tidak di-upgrade diam-diam. Untuk
-mengubah versi Python pada app yang sudah ter-deploy, app harus **dihapus lalu
-deploy ulang** — versinya tidak bisa diubah in-place.
+**Pilih 3.11.** Cloud pernah berjalan di Python 3.14.7, dan `scikit-learn==1.6.1`
+tidak punya wheel cp314 — hanya cp311, cp312, cp313. Akibatnya sklearn harus di
+build dari source dan instalasi memakan **46 menit**:
+
+```
+[16:39:51] Processing dependencies...
+          Using Python 3.14.7 environment at /home/adminuser/venv
+          Resolved 56 packages in 486ms
+[17:26:23] Python dependencies were installed      ← 46 menit 32 detik
+```
+
+Di Python 3.11, wheel cp311 dipakai dan instalasi selesai dalam hitungan detik.
+Versi ini juga sama dengan venv lokal, jadi perilaku app di cloud dan di
+lokal identik.
+
+Kalau 3.11 tidak tersedia di dropdown, naikkan `scikit-learn` ke **≥1.7.2** —
+versi pertama yang punya wheel cp314. Tapi model dilatih dengan 1.6.1, jadi
+artefak `.pkl` harus diuji ulang sebelumItu dianggap aman.
+
+Dua batasan lain dari Community Cloud: protobuf yang kompatibel adalah
+`>=3.20,<6`, dan `streamlit` sebaiknya di-pin agar tidak di-upgrade diam-diam.
+Mengubah versi Python pada app yang sudah ter-deploy harus lewat **hapus app
+lalu deploy ulang** — tidak bisa in-place.
 
 ## Struktur project
 
