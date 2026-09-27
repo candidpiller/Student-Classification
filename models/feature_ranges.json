@@ -1,0 +1,418 @@
+{
+  "dataset": "OULAD",
+  "model": "Explainable Boosting Machine",
+  "balancing": "CTGAN",
+  "target": "target_binary",
+  "target_mapping": {
+    "Fail": 0,
+    "Withdrawn": 0,
+    "Pass": 1,
+    "Distinction": 1
+  },
+  "threshold": 0.5,
+  "n_features": 40,
+  "feature_names": [
+    "gender",
+    "region",
+    "highest_education",
+    "imd_band",
+    "age_band",
+    "num_of_prev_attempts",
+    "studied_credits",
+    "disability",
+    "rata_rata_sks_modul",
+    "jumlah_mahasiswa_presentasi",
+    "jumlah_assessment",
+    "rata_rata_nilai_assessment",
+    "std_nilai_assessment",
+    "min_nilai_assessment",
+    "max_nilai_assessment",
+    "jumlah_assessment_banked",
+    "total_click_events",
+    "rata_rata_click_per_aktivitas",
+    "std_click_events",
+    "hari_pertama_akses",
+    "jumlah_hari_akses",
+    "durasi_pembelajaran_hari",
+    "klik_awal",
+    "klik_tengah",
+    "klik_akhir",
+    "tren_klik",
+    "rasio_klik_awal",
+    "rasio_klik_akhir",
+    "periode_puncak_aktivitas",
+    "jarak_akses_terakhir",
+    "konsistensi_keterlibatan",
+    "kemiringan_klik_mingguan",
+    "click_per_day",
+    "early_engagement",
+    "nilai_x_assessment",
+    "engagement_per_assessment",
+    "tren_x_konsistensi",
+    "skor_kesulitan_modul",
+    "skor_kesulitan_presentasi",
+    "skor_disesuaikan_kesulitan"
+  ],
+  "features": {
+    "gender": {
+      "type": "numeric",
+      "min": 0,
+      "max": 1,
+      "mean": 0.549206105699164,
+      "median": 1,
+      "std": 0.49758241001985165,
+      "step": 0.01
+    },
+    "region": {
+      "type": "numeric",
+      "min": 0,
+      "max": 12,
+      "mean": 5.871711283270691,
+      "median": 6,
+      "std": 3.690869350029759,
+      "step": 0.01
+    },
+    "highest_education": {
+      "type": "numeric",
+      "min": 0,
+      "max": 4,
+      "mean": 1.0201733527652068,
+      "median": 1,
+      "std": 0.9804867307327568,
+      "step": 0.01
+    },
+    "imd_band": {
+      "type": "numeric",
+      "min": 0,
+      "max": 10,
+      "mean": 4.4095650839917155,
+      "median": 4,
+      "std": 2.949525231901424,
+      "step": 0.01
+    },
+    "age_band": {
+      "type": "numeric",
+      "min": 0,
+      "max": 2,
+      "mean": 0.30378921531027075,
+      "median": 0,
+      "std": 0.4744330339451461,
+      "step": 0.01
+    },
+    "num_of_prev_attempts": {
+      "type": "numeric",
+      "min": 0,
+      "max": 6,
+      "mean": 0.16272915548055533,
+      "median": 0,
+      "std": 0.4795731632925816,
+      "step": 0.01
+    },
+    "studied_credits": {
+      "type": "numeric",
+      "min": 30,
+      "max": 655,
+      "mean": 79.7489836618854,
+      "median": 60,
+      "std": 40.91711356966985,
+      "step": 0.01
+    },
+    "disability": {
+      "type": "numeric",
+      "min": 0,
+      "max": 1,
+      "mean": 0.09664800184091432,
+      "median": 0,
+      "std": 0.2954835260166253,
+      "step": 0.01
+    },
+    "rata_rata_sks_modul": {
+      "type": "numeric",
+      "min": 34.45935280189424,
+      "max": 90.84514300438032,
+      "mean": 79.83727167857431,
+      "median": 84.07257554684537,
+      "std": 14.841609642438483,
+      "step": 0.01
+    },
+    "jumlah_mahasiswa_presentasi": {
+      "type": "numeric",
+      "min": 365,
+      "max": 2498,
+      "mean": 1759.3832937025388,
+      "median": 1803,
+      "std": 557.2736865985339,
+      "step": 0.01
+    },
+    "jumlah_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 28,
+      "mean": 6.355679987727238,
+      "median": 6,
+      "std": 5.071609419035678,
+      "step": 0.01
+    },
+    "rata_rata_nilai_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 100,
+      "mean": 59.711450715285295,
+      "median": 71.33333333333333,
+      "std": 31.316410673417035,
+      "step": 0.01
+    },
+    "std_nilai_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 70.0035713374682,
+      "mean": 10.419990877250793,
+      "median": 9.812660784455728,
+      "std": 8.895949809888045,
+      "step": 0.01
+    },
+    "min_nilai_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 100,
+      "mean": 43.96483086599678,
+      "median": 50,
+      "std": 29.006529834788914,
+      "step": 0.01
+    },
+    "max_nilai_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 100,
+      "mean": 71.90607501725857,
+      "median": 89,
+      "std": 36.59196110205512,
+      "step": 0.01
+    },
+    "jumlah_assessment_banked": {
+      "type": "numeric",
+      "min": 0,
+      "max": 12,
+      "mean": 0.11049321162844213,
+      "median": 0,
+      "std": 0.7376404371644496,
+      "step": 0.01
+    },
+    "total_click_events": {
+      "type": "numeric",
+      "min": 0,
+      "max": 28615,
+      "mean": 1474.0792743729385,
+      "median": 758,
+      "std": 1996.101238490435,
+      "step": 0.01
+    },
+    "rata_rata_click_per_aktivitas": {
+      "type": "numeric",
+      "min": 0,
+      "max": 19.42753623188406,
+      "mean": 3.009409775881768,
+      "median": 2.970149253731343,
+      "std": 1.4724960090325023,
+      "step": 0.01
+    },
+    "std_click_events": {
+      "type": "numeric",
+      "min": 0,
+      "max": 309.4547384432465,
+      "mean": 5.07412775743471,
+      "median": 4.000977044807792,
+      "std": 5.3971886188959575,
+      "step": 0.01
+    },
+    "hari_pertama_akses": {
+      "type": "numeric",
+      "min": -25,
+      "max": 234,
+      "mean": -8.284766433995552,
+      "median": -10,
+      "std": 12.027631876451997,
+      "step": 0.01
+    },
+    "jumlah_hari_akses": {
+      "type": "numeric",
+      "min": 0,
+      "max": 286,
+      "mean": 63.39633351231112,
+      "median": 47,
+      "std": 58.87920644454346,
+      "step": 0.01
+    },
+    "durasi_pembelajaran_hari": {
+      "type": "numeric",
+      "min": 0,
+      "max": 294,
+      "mean": 176.73766970928895,
+      "median": 232,
+      "std": 101.657962483411,
+      "step": 0.01
+    },
+    "klik_awal": {
+      "type": "numeric",
+      "min": 0,
+      "max": 12736,
+      "mean": 609.1751169747641,
+      "median": 317,
+      "std": 849.3119593507722,
+      "step": 0.01
+    },
+    "klik_tengah": {
+      "type": "numeric",
+      "min": 0,
+      "max": 11020,
+      "mean": 467.4871903045179,
+      "median": 208.5,
+      "std": 707.636198144362,
+      "step": 0.01
+    },
+    "klik_akhir": {
+      "type": "numeric",
+      "min": 0,
+      "max": 12649,
+      "mean": 397.4169670936565,
+      "median": 166,
+      "std": 602.763244092713,
+      "step": 0.01
+    },
+    "tren_klik": {
+      "type": "numeric",
+      "min": 0,
+      "max": 208.5,
+      "mean": 1.2385602300378755,
+      "median": 0.5073529411764706,
+      "std": 4.393210027056118,
+      "step": 0.01
+    },
+    "rasio_klik_awal": {
+      "type": "numeric",
+      "min": 0,
+      "max": 0.9999999999924812,
+      "mean": 0.40253253498711133,
+      "median": 0.4052388289673303,
+      "std": 0.23166922763052275,
+      "step": 0.01
+    },
+    "rasio_klik_akhir": {
+      "type": "numeric",
+      "min": 0,
+      "max": 0.9962406015000141,
+      "mean": 0.24966256392112302,
+      "median": 0.22634976007505464,
+      "std": 0.19063712914840555,
+      "step": 0.01
+    },
+    "periode_puncak_aktivitas": {
+      "type": "numeric",
+      "min": 0,
+      "max": 2,
+      "mean": 0.5749405538083915,
+      "median": 0,
+      "std": 0.7952720085081928,
+      "step": 0.01
+    },
+    "jarak_akses_terakhir": {
+      "type": "numeric",
+      "min": -25,
+      "max": 269,
+      "mean": 168.4529032752934,
+      "median": 227,
+      "std": 98.26747103757744,
+      "step": 0.01
+    },
+    "konsistensi_keterlibatan": {
+      "type": "numeric",
+      "min": 0,
+      "max": 1,
+      "mean": 0.07374975352615408,
+      "median": 0.043864334270458716,
+      "std": 0.14296952516117706,
+      "step": 0.01
+    },
+    "kemiringan_klik_mingguan": {
+      "type": "numeric",
+      "min": -140.7142857142857,
+      "max": 137.9142857142857,
+      "mean": -1.0941004078929075,
+      "median": -0.4439493433395866,
+      "std": 6.494437884754787,
+      "step": 0.01
+    },
+    "click_per_day": {
+      "type": "numeric",
+      "min": 0,
+      "max": 148.94444444444446,
+      "mean": 17.6515778844454,
+      "median": 15.571428571428571,
+      "std": 12.299795751734525,
+      "step": 0.01
+    },
+    "early_engagement": {
+      "type": "numeric",
+      "min": 0,
+      "max": 133,
+      "mean": 7.01707081575607,
+      "median": 4.572282740256597,
+      "std": 8.03135692519312,
+      "step": 0.01
+    },
+    "nilai_x_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 2718,
+      "mean": 478.82499808238094,
+      "median": 394,
+      "std": 407.412330990587,
+      "step": 0.01
+    },
+    "engagement_per_assessment": {
+      "type": "numeric",
+      "min": 0,
+      "max": 2676.4,
+      "mean": 172.43500127850191,
+      "median": 117.5,
+      "std": 190.154765883586,
+      "step": 0.01
+    },
+    "tren_x_konsistensi": {
+      "type": "numeric",
+      "min": 0,
+      "max": 136.5,
+      "mean": 0.4623289964829176,
+      "median": 0.04737767859040824,
+      "std": 3.1127229011671433,
+      "step": 0.01
+    },
+    "skor_kesulitan_modul": {
+      "type": "numeric",
+      "min": 0.2897822445561139,
+      "max": 0.620826259196378,
+      "mean": 0.5279588862468358,
+      "median": 0.5287013801756587,
+      "std": 0.06995815104871257,
+      "step": 0.01
+    },
+    "skor_kesulitan_presentasi": {
+      "type": "numeric",
+      "min": 0.27564102564102566,
+      "max": 0.6608639587362992,
+      "mean": 0.527958886246836,
+      "median": 0.5260663507109005,
+      "std": 0.07381500358765201,
+      "step": 0.01
+    },
+    "skor_disesuaikan_kesulitan": {
+      "type": "numeric",
+      "min": 0,
+      "max": 64.48777219430485,
+      "mean": 28.303307328445012,
+      "median": 32.51960476787955,
+      "std": 15.729653447633119,
+      "step": 0.01
+    }
+  }
+}
