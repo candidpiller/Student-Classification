@@ -24,7 +24,7 @@ judul_col, preset_risiko_col, preset_aman_col = st.columns(
     [4, 1, 1], vertical_alignment="bottom"
 )
 with judul_col:
-    st.title("Prediksi risiko mahasiswa", icon=":material/monitor_heart:", anchor=False)
+    st.title("Prediksi risiko mahasiswa", anchor=False)
 with preset_risiko_col:
     if st.button("Contoh berisiko", width="stretch", key="preset_berisiko"):
         st.session_state["pending_preset"] = CONTOH_BERISIKO
@@ -53,7 +53,7 @@ module_stats = load_module_stats()
 
 # Dua field ini dirender di luar form: opsi presentasi harus bisa ikut berubah
 # begitu modul diganti, sedangkan widget di dalam st.form tidak memicu rerun.
-st.subheader("Modul yang diambil", icon=":material/book:", anchor=False)
+st.subheader("Modul yang diambil", anchor=False)
 module_col, presentation_col = st.columns(2)
 with module_col:
     code_module = st.selectbox(
@@ -112,7 +112,7 @@ form_values: dict = {}
 
 with st.form("prediction_form"):
     for title, fields in FORM_SECTIONS:
-        st.subheader(title, icon=":material/tune:", anchor=False)
+        st.subheader(title, anchor=False)
 
         buckets: list[list[str]] = [[] for _ in range(3)]
         for position, field in enumerate(fields):
@@ -127,7 +127,8 @@ with st.form("prediction_form"):
         "Prediksi risiko", icon=":material/search:", type="primary", width="stretch"
     )
 
-if st.button("Reset form", icon=":material/restart_alt:", width="content"):
+# Tepat di bawah tombol submit, lebarnya sama agar rata dengan form.
+if st.button("Reset form", width="stretch"):
     st.session_state["pending_preset"] = PRESETS["Reset form"]
     st.rerun()
 

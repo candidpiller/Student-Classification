@@ -17,14 +17,14 @@ from src.prediction import MODELS_DIR, artefak_siap
 
 # Navbar disembunyikan, jadi setiap halaman punya judul sendiri.
 # anchor=False menyembunyikan ikon tautan yang muncul saat hover di kanan heading.
-st.title("Tentang model", icon=":material/model_training:", anchor=False)
+st.title("Tentang model", anchor=False)
 
 st.caption(
     "Aplikasi web untuk memperkirakan risiko ketidaklulusan mahasiswa memakai "
     "model Explainable Boosting Machine."
 )
 
-st.subheader("Tujuan", icon=":material/target:", anchor=False)
+st.subheader("Tujuan", anchor=False)
 st.markdown(
     f"""
     Aplikasi ini membantu institution memprioritaskan pendampingan bagi
@@ -41,7 +41,7 @@ st.markdown(
     """
 )
 
-st.subheader("Cara kerja", icon=":material/account_tree:", anchor=False)
+st.subheader("Cara kerja", anchor=False)
 st.markdown(
     f"""
     1. Pengguna mengisi **{len(REQUIRED_INPUT_FIELDS)}** field input.
@@ -56,7 +56,7 @@ st.markdown(
     """
 )
 
-st.subheader("Tentang model", icon=":material/model_training:", anchor=False)
+st.subheader("Tentang model", anchor=False)
 st.dataframe(
     {
         "Aspek": ["Model", "Data balancing", "Jumlah fitur", "Threshold"],
@@ -75,7 +75,7 @@ st.markdown(
     "agar model tidak terlalu bias ke kelas yang lebih besar."
 )
 
-st.subheader("Batasan penggunaan", icon=":material/warning:", anchor=False)
+st.subheader("Batasan penggunaan", anchor=False)
 st.markdown(
     f"""
     - Prediksi adalah **kemungkinan statistik**, bukan keputusan final.
@@ -90,7 +90,7 @@ st.markdown(
     """
 )
 
-st.subheader("Struktur input", icon=":material/schema:", anchor=False)
+st.subheader("Struktur input", anchor=False)
 non_model = ", ".join(f"`{f}`" for f in NON_MODEL_FORM_FIELDS) or "tidak ada"
 st.markdown(
     f"""
@@ -123,14 +123,14 @@ with st.expander("Contoh nilai preset", icon=":material/tune:"):
         width="stretch",
     )
 
-st.subheader("Kualitas data sintetis", icon=":material/science:", anchor=False)
+st.subheader("Kualitas data sintetis", anchor=False)
 st.image(
     asset_path("fig_kualitas_data_sintetis.png"),
     caption=FIGURES["fig_kualitas_data_sintetis.png"][1],
     width="stretch",
 )
 
-st.subheader("Artefak model", icon=":material/inventory:", anchor=False)
+st.subheader("Artefak model", anchor=False)
 if os.path.isdir(MODELS_DIR):
     artifact_rows = [
         {
