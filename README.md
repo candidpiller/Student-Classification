@@ -8,10 +8,10 @@ satu halaman penuh tanpa sidebar; perpindahan halaman memakai tautan di bagian a
 
 ## Tech stack
 
-- Python 3.11+
+- Python 3.11+ (teruji pada 3.11.9 dan 3.14.7)
 - Streamlit (teruji pada 1.63.0)
 - Pandas, NumPy
-- Scikit-learn
+- Scikit-learn 1.7.2 — di-pin, lihat [Batasan Python](#batasan-python-scikit-learn-menentukan-versi)
 - InterpretML (EBM)
 - Joblib
 
@@ -88,16 +88,12 @@ deploy.
 Enkoding UTF-16 menyisipkan byte `\x00` di tiap baris sehingga nama paket tidak
 terbaca dan instalasi gagal. Simpan sebagai UTF-8 tanpa BOM.
 
-### Memilih versi Python
+### Batasan Python: `scikit-learn` menentukan versi
 
-**`runtime.txt` diabaikan oleh Streamlit Community Cloud.** File itu hanya dibaca
-host yang mendukungnya (Render, Railway, Fly.io). Untuk Community Cloud, versi
-Python dipilih lewat dropdown **"Python version"** di **Advanced settings** saat
-deploy.
-
-**Pilih 3.11.** Cloud pernah berjalan di Python 3.14.7, dan `scikit-learn==1.6.1`
-tidak punya wheel cp314 — hanya cp311, cp312, cp313. Akibatnya sklearn harus di
-build dari source dan instalasi memakan **46 menit**:
+Community Cloud memakai **uv**, bukan pip, untuk instalasi. Cloud yang pernah
+menjalankan app ini memakai **Python 3.14.7**, dan `scikit-learn==1.6.1` hanya
+punya wheel cp310–cp313. Akibatnya sklearn harus di build dari source dan
+instalasi memakan **46 menit**:
 
 ```
 [16:39:51] Processing dependencies...
@@ -106,18 +102,27 @@ build dari source dan instalasi memakan **46 menit**:
 [17:26:23] Python dependencies were installed      ← 46 menit 32 detik
 ```
 
-Di Python 3.11, wheel cp311 dipakai dan instalasi selesai dalam hitungan detik.
-Versi ini juga sama dengan venv lokal, jadi perilaku app di cloud dan di
-lokal identik.
+`requirements.txt` kini pin `scikit-learn==1.7.2` — versi pertama yang punya
+wheel cp314 — sehingga instalasi cepat di Python mana pun yang dipilih Cloud.
+Naik ke 1.7.2 sudah divalidasi: 146 test lulus dan probabilitas prediksi identik
+bit-per-bit dengan 1.6.1.
 
-Kalau 3.11 tidak tersedia di dropdown, naikkan `scikit-learn` ke **≥1.7.2** —
-versi pertama yang punya wheel cp314. Tapi model dilatih dengan 1.6.1, jadi
-artefak `.pkl` harus diuji ulang sebelumItu dianggap aman.
+Dua hal yang perlu diketahui:
+
+- `03_scaler.pkl` dan `label_encoders.pkl` masih diserialisasi saat sklearn
+  1.6.1, jadi memuatnya di 1.7.2 memunculkan dua `InconsistentVersionWarning`.
+  Itu warning, bukan error, dan hasilnya sudah terbukti sama. Kalau warning
+  ini tidak diinginkan, ekspor ulang kedua artefak itu memakai 1.7.2.
+- `scikit-learn` di-pin dengan sengaja. Menurunkannya ke versi yang tidak punya
+  wheel untuk Python yang sedang dipakai akan mengembalikan build 46 menit.
+
+Memilih versi Python tetap hanya bisa lewat dropdown **"Python version"** di
+**Advanced settings** saat deploy — `runtime.txt` dan `.python-version` sama
+sekali tidak dibaca Community Cloud. Mengubahnya pada app yang sudah
+ter-deploy harus lewat **hapus app lalu deploy ulang**.
 
 Dua batasan lain dari Community Cloud: protobuf yang kompatibel adalah
 `>=3.20,<6`, dan `streamlit` sebaiknya di-pin agar tidak di-upgrade diam-diam.
-Mengubah versi Python pada app yang sudah ter-deploy harus lewat **hapus app
-lalu deploy ulang** — tidak bisa in-place.
 
 ## Struktur project
 
