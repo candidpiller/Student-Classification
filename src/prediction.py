@@ -116,3 +116,60 @@ def predict_students(raw_inputs: list[dict]) -> list[dict]:
             "threshold": THRESHOLD,
         })
     return results
+
+
+# Jumlah titik yang dipakai saat mengukur arah pengaruh sebuah field. Nilai ini
+# dipakai ulang oleh test, supaya hasil ukur ulang benar-benar bisa dibandingkan
+# dengan angka yang tersimpan di FIELD_EFFECT.
+SWEEP_POINTS = 5
+
+
+def measure_field_effect(
+    field: str,
+    low: float,
+    high: float,
+    baseline: dict,
+    points: int = SWEEP_POINTS,
+) -> dict:
+    """Ukur arah dan besaran pengaruh satu field terhadap risiko.
+
+    `field` dijankan dari `low` ke `high` dalam `points` langkah sama jarak,
+    sementara field lain ditahan pada `baseline`. Hasilnya:
+
+        risiko_min / risiko_maks : nilai risiko terkecil dan terbesar di sepang
+        rentang                   : risiko_maks - risiko_min, yaitu seberapa jauh
+                                   risiko bergerak karena field ini saja
+        arah                      : "naik_berisiko" / "naik_aman" / "puncak_tengah"
+
+    `rentang` sengaja dipakai, bukan selisih antara nilai `low` dan `high`.
+    Untuk field non-monoton keduanya jauh berbeda: field yang paling aman di
+    tengah rentang punya selisih ujung yang kecil padahal risikonya bergerak
+    jauh sekali di tengah-tengah.
+    """
+    model = load_model()
+    stats = load_module_stats()
+
+    risks = []
+    for i in range(points):
+        nilai = low + (high - low) * i / (points - 1)
+        baris = dict(baseline)
+        baris[field] = nilai
+        X = _encode_frame([baris], stats)
+        risks.append(float(model.predict_proba(X)[0][0]))
+
+    if risks[-1] > risks[0] and min(risks) == risks[0]:
+        arah = "naik_berisiko"
+    elif risks[-1] < risks[0] and min(risks) == risks[-1]:
+        arah = "naik_aman"
+    elif min(risks) in (risks[0], risks[-1]):
+        arah = "puncak_ujung"
+    else:
+        arah = "puncak_tengah"
+
+    return {
+        "risiko_min": min(risks),
+        "risiko_maks": max(risks),
+        "rentang": max(risks) - min(risks),
+        "arah": arah,
+        "risiko_per_poin": risks,
+    }

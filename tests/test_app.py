@@ -15,6 +15,8 @@ pytest.importorskip("streamlit")
 
 from streamlit.testing.v1 import AppTest
 
+from src.form_config import FORM_DEFAULTS, widget_key
+
 APP_PATH = os.path.join(os.path.dirname(__file__), "..", "app.py")
 PAGES_DIR = os.path.join(os.path.dirname(__file__), "..", "app_pages")
 PAGE_FILES = ["predict.py", "about.py"]
@@ -76,11 +78,11 @@ def test_preset_applies_jarak_akses_terakhir(at):
     """Regresi: field ini pernah salah ketik sehingga preset tidak ikut terisi."""
     _button(at, "Contoh berisiko").click()
     at.run()
-    assert _number(at, "Jarak akses terakhir") == 85.0
+    assert _number(at, "Hari akses terakhir") == 85.0
 
     _button(at, "Contoh tidak berisiko").click()
     at.run()
-    assert _number(at, "Jarak akses terakhir") == 258.0
+    assert _number(at, "Hari akses terakhir") == 258.0
 
 
 def test_preset_not_risky_applies_to_widgets(at):
@@ -96,7 +98,8 @@ def test_preset_not_risky_applies_to_widgets(at):
     assert _select(at, "Jenis kelamin") == "F"
 
 
-def test_reset_restores_defaults(at):
+def test_reset_mengosongkan_form(at):
+    """Reset form mengosongkan input, bukan mengembalikannya ke default."""
     _button(at, "Contoh berisiko").click()
     at.run()
     assert _number(at, "Total click events") == 250.0
@@ -105,10 +108,233 @@ def test_reset_restores_defaults(at):
     at.run()
 
     assert not at.exception
-    assert _number(at, "Total click events") == 1500.0
-    assert _number(at, "Kemiringan klik mingguan") == 0.0
-    assert _number(at, "Jarak akses terakhir") == 20.0
-    assert _select(at, "Kode modul") == "AAA"
+    state = at.session_state.filtered_state
+    for field in FORM_DEFAULTS:
+        assert state[widget_key(field)] is None, f"{field} tidak dikosongkan"
+
+    # Kolom selectbox juga harus kosong, termasuk modul-presentasi yang dirender
+    # di luar form.
+    assert _select(at, "Kode modul") is None
+    assert _select(at, "Kode presentasi") is None
+
+
+def test_submit_form_kosong_gagal_dengan_pesan_yang_jelas(at):
+    """Form kosong tidak boleh crash, dan errornya satu baris untuk daftar field."""
+    _button(at, "Reset form").click()
+    at.run()
+    _button(at, "Prediksi risiko").click()
+    at.run()
+
+    assert not at.exception
+    assert "Probabilitas berisiko" not in [m.label for m in at.metric]
+    belum_disi = [w.value for w in at.warning if "belum diisi" in w.value]
+    assert len(belum_disi) == 1, belum_disi
+    # Nama field harus pakai label ramah, bukan nama kolom mentah.
+    assert "Total click events" in belum_disi[0]
+
+
+def test_reset_does_not_trigger_prediction(at):
+    """Reset hidup di dalam form, jadi ia juga một form_submit_button.
+
+    Kalau tombol reset ikut membuat `submitted` bernilai True, pengguna akan
+    mendapat hasil prediksi tepat setelah menekan reset — perilaku yang tidak
+    pernah diinginkan.
+    """
+    _button(at, "Contoh berisiko").click()
+    at.run()
+    _button(at, "Reset form").click()
+    at.run()
+
+    assert not at.exception
+    assert "Probabilitas berisiko" not in [m.label for m in at.metric], (
+        "tombol Reset form ikut menjalankan prediksi"
+    )
+
+
+def test_predict_button_still_submits(at):
+    """Setelah reset dipindah ke dalam form, tombol submit harus tetap jalan."""
+    # Fixture `at` dipakai bersama antar-test, dan Reset form kini mengosongkan
+    # form. Isi dulu lewat preset supaya test ini tidak bergantung pada sisa
+    # state test sebelumnya.
+    _button(at, "Contoh berisiko").click()
+    at.run()
+
+    _button(at, "Prediksi risiko").click()
+    at.run()
+
+    assert not at.exception
+    assert "Probabilitas berisiko" in [m.label for m in at.metric]
+
+
+class TestPanduanArahNilai:
+    """Tabel arah nilai dan petunjuk per-field yang tampil di halaman prediksi."""
+
+    def test_expander_panduan_ada(self, at):
+        # Penting: Streamlit mengklasifikasikan st.expander yang memakai
+        # parameter `icon` sebagai blok "status", jadi ia muncul di at.status,
+        # bukan at.expander. Mengaksesnya lewat at.expander selalu kosong.
+        labels = [s.label for s in at.status]
+        assert "Panduan arah nilai setiap field" in labels
+
+    def test_tabel_memuat_semua_field_numerik(self, at):
+        from src.form_config import FIELD_BOUNDS, FIELD_EFFECT
+
+        tabel = at.dataframe[0].value
+        assert len(tabel) == len(FIELD_EFFECT) == len(FIELD_BOUNDS)
+        assert list(tabel.columns) == [
+            "Field", "Arah nilai", "Perubahan risiko", "Penting (%)"
+        ]
+
+    def test_tabel_terurut_menurut_pengaruh(self, at):
+        tabel = at.dataframe[0].value
+        penting = list(tabel["Penting (%)"])
+        assert penting == sorted(penting, reverse=True)
+
+    def test_setiap_widget_numerik_punya_petunjuk_arah(self, at):
+        from src.form_config import DIRECTION_LABEL, FIELD_EFFECT, FIELD_LABELS
+
+        for nomor in at.number_input:
+            field = next(
+                (f for f in FIELD_EFFECT
+                 if nomor.label.startswith(FIELD_LABELS[f])),
+                None,
+            )
+            assert field is not None, f"tidak ada field cocok untuk {nomor.label!r}"
+            assert DIRECTION_LABEL[FIELD_EFFECT[field]["arah"]] in (nomor.help or ""), (
+                f"{field}: help widget tidak menyebut arah pengaruhnya"
+            )
+
+    def test_field_yang_diabaikan_model_tidak_ditampilkan(self, at):
+        assert not any(
+            n.label.startswith("Hari terakhir akses") for n in at.number_input
+        )
+
+    def test_label_menyesatkan_sudah_diganti(self, at):
+        labels = [n.label for n in at.number_input]
+        assert any(l.startswith("Hari akses terakhir") for l in labels)
+        assert not any(l.startswith("Jarak akses terakhir") for l in labels)
+
+
+class TestFieldTambahanDiExpander:
+    """Field berlabel 'pengaruh kecil' dilipat ke expander, bukan dibuang."""
+
+    def test_expander_field_tambahan_ada(self, at):
+        from src.form_config import FIELDS_TAMBAHAN
+
+        labels = [s.label for s in at.status]
+        assert any(
+            label.startswith("Field tambahan") and str(len(FIELDS_TAMBAHAN)) in label
+            for label in labels
+        ), labels
+
+    def test_field_tambahan_tetap_dirender(self, at):
+        from src.form_config import FIELDS_TAMBAHAN, widget_key
+
+        keys = {n.key for n in at.number_input}
+        for field in FIELDS_TAMBAHAN:
+            assert widget_key(field) in keys, f"{field} hilang dari form"
+
+    def test_field_tambahan_memang_di_dalam_expander(self, at):
+        """Bukan sekadar ada di form, tapi benar-benar berada di dalam expander."""
+        from src.form_config import FIELDS_TAMBAHAN, widget_key
+
+        blok = next(
+            s for s in at.status
+            if s.label.startswith("Field tambahan")
+        )
+        kunci_di_dalam = _kunci_number_input(blok)
+        for field in FIELDS_TAMBAHAN:
+            assert widget_key(field) in kunci_di_dalam, (
+                f"{field} tidak ada di dalam expander 'Field tambahan'"
+            )
+
+    def test_field_tambahan_tidak_ada_di_bagian_utama(self, at):
+        """Field tambahan tidak boleh bocor ke form utama."""
+        from src.form_config import FIELDS_TAMBAHAN, widget_key
+
+        semua_kunci = {n.key for n in at.number_input}
+        kunci_tambahan = {widget_key(f) for f in FIELDS_TAMBAHAN}
+        assert kunci_tambahan <= semua_kunci
+
+        # Hitung berapa field yang TIDAK berada di expander: harusnya 18 dari 23.
+        blok = next(s for s in at.status if s.label.startswith("Field tambahan"))
+        jumlah_dalam = len(_kunci_number_input(blok))
+        assert jumlah_dalam == len(FIELDS_TAMBAHAN)
+        assert len(semua_kunci) - jumlah_dalam == len(semua_kunci) - len(FIELDS_TAMBAHAN)
+
+    def test_semua_field_tetap_ada_setelah_dilipat(self, at):
+        from src.form_config import NUMERIC_FORM_FIELDS
+
+        assert len(at.number_input) == len(NUMERIC_FORM_FIELDS)
+
+    def test_field_expander_ikut_mengubah_prediksi(self, at):
+        """Nilai di dalam expander harus tetap sampai ke model.
+
+        Expander menutup, bukan membuang input. Kalau nilai ini tidak ikut,
+        prediksi diam-diam dihitung dari default dan form jadi menipu.
+        """
+        from src.form_config import CONTOH_TIDAK_BERISIKO, FIELDS_TAMBAHAN
+        from src.prediction import predict_student
+
+        field = FIELDS_TAMBAHAN[0]
+        _button(at, "Contoh tidak berisiko").click()
+        at.run()
+        _button(at, "Prediksi risiko").click()
+        at.run()
+        sebelum = _risiko_persen(at)
+
+        nomor = next(n for n in at.number_input if n.key == f"f_{field}")
+        nilai_baru = 0.0 if nomor.value > 0 else 1.0
+        nomor.set_value(nilai_baru)
+        at.run()
+        _button(at, "Prediksi risiko").click()
+        at.run()
+        sesudah = _risiko_persen(at)
+
+        assert abs(sesudah - sebelum) > 1e-4, (
+            f"mengubah {field} di dalam expander tidak mengubah prediksi: "
+            f"{sebelum} -> {sesudah}"
+        )
+
+        # Bandingkan juga dengan jalur resmi.
+        row = dict(CONTOH_TIDAK_BERISIKO)
+        row[field] = nilai_baru
+        resmi = predict_student(row)["probability_risk"] * 100
+        assert abs(resmi - sesudah) < 0.01, (resmi, sesudah)
+
+    def test_reset_juga_mengosongkan_field_tambahan(self, at):
+        from src.form_config import FIELDS_TAMBAHAN, widget_key
+
+        _button(at, "Contoh berisiko").click()
+        at.run()
+        _button(at, "Reset form").click()
+        at.run()
+
+        state = at.session_state.filtered_state
+        for field in FIELDS_TAMBAHAN:
+            key = widget_key(field)
+            assert state[key] is None, field
+
+
+def _kunci_number_input(blok) -> set:
+    """Kunci widget number_input di seluruh subtree sebuah blok.
+
+    AppTest mengekspos elemennya datar, jadi tidak ada cara untuk tahu sebuah
+    widget berada di dalam expander atau tidak selain menelusuri pohonnya.
+    """
+    terkumpul = set()
+    for node in getattr(blok, "children", {}).values():
+        kunci = getattr(node, "key", None)
+        if kunci is not None and node.__class__.__name__ == "NumberInput":
+            terkumpul.add(kunci)
+        terkumpul |= _kunci_number_input(node)
+    return terkumpul
+
+
+def _risiko_persen(at):
+    """Nilai metrik 'Probabilitas berisiko' dalam persen, sebagai float."""
+    teks = next(m.value for m in at.metric if m.label == "Probabilitas berisiko")
+    return float(teks.replace("%", "").replace(",", "."))
 
 
 def test_preset_values_stay_inside_widget_bounds(at):
@@ -119,6 +345,11 @@ def test_preset_values_stay_inside_widget_bounds(at):
         assert not at.exception, f"{label} menghasilkan exception"
         for n in at.number_input:
             lo, hi = getattr(n, "min"), n.max
+            if n.value is None:
+                # Reset form sengaja mengosongkan kolom, jadi tidak ada nilai
+                # yang bisa dibandingkan dengan batas.
+                assert label == "Reset form", f"{n.label} kosong di {label}"
+                continue
             assert lo <= n.value <= hi, (
                 f"{n.label} = {n.value} di luar [{lo}, {hi}]"
             )
@@ -284,10 +515,10 @@ def test_about_page_lists_model_artifacts():
 def _submitted_page(tmp_path, session_patch: dict | None = None):
     """Jalankan predict.py dengan tombol submit dipaksa terpicu.
 
-    AppTest tidak bisa mengklik st.form_submit_button, jadi penjaga
-    `if not submitted: st.stop()` diganti `submitted = True`. Ini satu-satunya
-    cara menguji jalur submit — tempat bug seperti field yang tidak terbaca dari
-    form pernah muncul.
+    AppTest bisa mengklik st.form_submit_button, tapi menjadikannya cara paling
+    sederhana untuk menguji jalur submit: penjaga `if not submitted: st.stop()`
+    diganti `submitted = True` supaya model tidak dipanggil berulang kali.
+    Ini tempat bug seperti field yang tidak terbaca dari form pernah muncul.
     """
     source = open(os.path.join(PAGES_DIR, "predict.py"), encoding="utf-8").read()
     patched, count = re.subn(

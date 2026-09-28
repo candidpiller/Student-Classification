@@ -11,10 +11,11 @@ from src.config import (
     CATEGORICAL_COLS, FEATURE_ORDER, REQUIRED_INPUT_FIELDS,
 )
 from src.form_config import (
-    CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FIELD_BOUNDS, FIELD_HELP,
-    FIELD_LABELS, FORM_DEFAULTS, FORM_SECTIONS, MODULE_FIELDS,
-    NON_MODEL_FORM_FIELDS, NUMERIC_FORM_FIELDS, PRESETS, SELECT_OPTIONS,
-    field_label, validate_form_config, widget_key,
+    AMBANG_EFFECT, CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, DIRECTION_LABEL,
+    FIELD_BOUNDS, FIELD_EFFECT, FIELD_HELP, FIELD_LABELS, FORM_DEFAULTS,
+    FORM_KOSONG, FORM_SECTIONS, MODULE_FIELDS, NON_MODEL_FORM_FIELDS,
+    NUMERIC_FORM_FIELDS, PRESETS, SELECT_OPTIONS, effect_rows, field_effect,
+    field_help, field_label, validate_form_config, widget_key,
 )
 
 # Field yang boleh tidak ada di FORM_DEFAULTS karena dipakai sebagai selectbox
@@ -107,8 +108,14 @@ class TestFieldLabel:
 
 
 class TestPresets:
-    def test_reset_form_equals_form_defaults(self):
-        assert PRESETS["Reset form"] == FORM_DEFAULTS
+    def test_form_kosong_mengosongkan_setiap_field(self):
+        assert set(FORM_KOSONG) == set(FORM_DEFAULTS)
+        assert all(value is None for value in FORM_KOSONG.values())
+
+    def test_form_kosong_bukan_anggota_presets(self):
+        """PRESETS berisi data lengkap yang harus lolos validasi, form kosong tidak."""
+        assert FORM_KOSONG not in PRESETS.values()
+        assert set(PRESETS) == {"Contoh berisiko", "Contoh tidak berisiko"}
 
     @pytest.mark.parametrize(
         "preset", [CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO]
@@ -157,6 +164,79 @@ class TestFieldModelContract:
             if field in ("code_module", "code_presentation"):
                 continue
             assert field in FEATURE_ORDER
+
+
+class TestFieldEffect:
+    """Arah nilai harus menutup semua field numerik dan konsisten dengan ambang."""
+
+    def test_every_numeric_field_has_a_measured_effect(self):
+        assert set(FIELD_EFFECT) == set(FIELD_BOUNDS)
+
+    def test_every_effect_uses_a_known_direction(self):
+        for field, efek in FIELD_EFFECT.items():
+            assert efek["arah"] in DIRECTION_LABEL, field
+
+    def test_neutral_label_matches_threshold(self):
+        for field, efek in FIELD_EFFECT.items():
+            if efek["arah"] == "netral":
+                assert efek["dampak"] < AMBANG_EFFECT, field
+            else:
+                assert efek["dampak"] >= AMBANG_EFFECT, field
+
+    def test_effect_covers_only_numeric_fields(self):
+        for field in FIELD_EFFECT:
+            assert field not in SELECT_OPTIONS, field
+
+    def test_field_help_appends_direction(self):
+        for field, efek in FIELD_EFFECT.items():
+            teks = field_help(field)
+            assert DIRECTION_LABEL[efek["arah"]] in teks, field
+            # Deskripsi asli harus tetap utuh di depan anotasi arah.
+            if field in FIELD_HELP:
+                assert teks.startswith(FIELD_HELP[field]), field
+
+    def test_field_help_without_effect_returns_plain_help(self):
+        assert field_help("gender") == FIELD_HELP["gender"]
+        assert field_help("code_module") == FIELD_HELP["code_module"]
+        assert field_effect("gender") is None
+
+    def test_effect_rows_sorted_by_importance_desc(self):
+        rows = effect_rows()
+        assert len(rows) == len(FIELD_EFFECT)
+        penting = [r["Penting (%)"] for r in rows]
+        assert penting == sorted(penting, reverse=True)
+
+    def test_effect_rows_expose_table_columns(self):
+        for row in effect_rows():
+            assert set(row) == {"Field", "Arah nilai", "Perubahan risiko", "Penting (%)"}
+            assert row["Arah nilai"] in DIRECTION_LABEL.values()
+
+
+class TestRemovedFields:
+    """`hari_terakhir_akses` dihapus karena sweep membuktikan efeknya nol."""
+
+    def test_field_is_gone_from_form_config(self):
+        for name, mapping in [
+            ("FORM_DEFAULTS", FORM_DEFAULTS),
+            ("FIELD_LABELS", FIELD_LABELS),
+            ("FIELD_BOUNDS", FIELD_BOUNDS),
+            ("FIELD_HELP", FIELD_HELP),
+            ("FIELD_EFFECT", FIELD_EFFECT),
+        ]:
+            assert "hari_terakhir_akses" not in mapping, name
+
+    def test_field_is_gone_from_presets_and_sections(self):
+        assert "hari_terakhir_akses" not in CONTOH_BERISIKO
+        assert "hari_terakhir_akses" not in CONTOH_TIDAK_BERISIKO
+        semua_section = [f for _, fields in FORM_SECTIONS for f in fields]
+        assert "hari_terakhir_akses" not in semua_section
+
+    def test_no_form_field_is_left_without_model_effect(self):
+        assert NON_MODEL_FORM_FIELDS == []
+
+    def test_misleading_label_was_renamed(self):
+        assert FIELD_LABELS["jarak_akses_terakhir"] == "Hari akses terakhir (relatif)"
+        assert "Jarak akses terakhir" not in FIELD_LABELS.values()
 
 
 class TestAssets:

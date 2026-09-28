@@ -159,8 +159,71 @@ student-classification/
 
 | Halaman | Isi |
 |---------|-----|
-| Prediksi individual | Form 32 field, tombol preset, skor kesulitan otomatis, local explanation EBM |
+| Prediksi individual | Form 31 field, tombol preset, panduan arah nilai, skor kesulitan otomatis, local explanation EBM |
 | Tentang model | Cara kerja model, struktur input, batasan penggunaan, daftar artefak |
+
+## Arah nilai tiap field
+
+Tidak semua field mengikuti aturan "nilai tinggi = lebih baik". Arah pengaruh tiap
+field diukur **langsung dari model EBM**, bukan dari asumsi umum, lalu hasilnya
+ditampilkan di aplikasi: di tooltip setiap input dan di tabel referensi di dalam
+expander "Panduan arah nilai setiap field".
+
+Cara mengukurnya: satu field dinaikkan sepanjang rentangnya dalam lima titik sama
+jarak, sementara field lain ditahan pada profil `CONTOH_TIDAK_BERISIKO` (risiko
+0,1386, jadi tidak jenuh di batas). Angka yang disimpan adalah **rentang**
+probabilitas risiko, yaitu tertinggi dikurangi terendah — bukan selisih kedua
+ujung, karena field non-monoton punya selisih ujung kecil padahal risikonya
+bergerak jauh di tengah rentang.
+
+Empat kategori yang muncul:
+
+| Arah | Arti |
+|------|------|
+| Naik = lebih aman | Nilai lebih tinggi menurunkan risiko |
+| Naik = lebih berisiko | Nilai lebih tinggi menaikkan risiko |
+| Terbaik di tengah rentang | Non-monoton, risiko terendah ada di tengah |
+| Pengaruh kecil, tidak monoton, tetap dipakai model | Di bawah ambang 0,10 |
+
+Tiga hal yang mungkin counterintuitive dan perlu diperhatikan:
+
+- **`jarak_akses_terakhir`** (paling berpengaruh, 17%) lebih tinggi justru lebih
+  aman. Nilainya adalah *hari relatif akses terakhir*, bukan "berapa lama sudah
+  tidak diakses": negatif berarti mahasiswa berhenti sebelum modul dimulai,
+  tinggi berarti masih aktif sampai modul mendekati selesai. Karena itu labelnya
+  diubah menjadi "Hari akses terakhir (relatif)".
+- **`jumlah_assessment`** (12%) lebih tinggi justru lebih berisiko.
+- **`total_click_events`** pengaruhnya kecil dan tidak monoton, meski secara
+  intuisi "makin aktif makin baik".
+
+Angka-angka ini disimpan di `FIELD_EFFECT` (`src/form_config.py`) supaya tidak
+perlu memanggil model berulang kali hanya untuk menyusun tabel. Test
+`tests/test_field_effect.py` mengukur ulang field paling berpengaruh dan
+membandingkannya dengan angka tersimpan, sehingga data basi tertangkap saat
+test — bukan saat pengguna tertipu. Fungsi pengukurannya `measure_field_effect`
+(`src/prediction.py`) dipakai bersama oleh pengumpulan data dan test agar
+definisinya tidak menyimpang.
+
+### Field berlabel "pengaruh kecil" tidak bisa dihapus
+
+Lima field masuk kategori tersebut: `klik_awal`, `std_click_events`,
+`total_click_events`, `konsistensi_keterlibatan`, dan `std_nilai_assessment`.
+Semuanya **fitur langsung model** — mengacaukan `predict_student` dengan
+`KeyError`, dan mempatoknya ke default masih menggeser risiko 0,009–0,035.
+Jadi kelima field itu **dilipat ke expander "Field tambahan"**, bukan dibuang.
+Nilai di dalam expander tetap bagian dari `st.form` sehingga tetap ikut
+terkirim saat submit, dan `tests/test_app.py` memverifikasi bahwa mengubahnya
+sungguh mengubah prediksi.
+
+Label kategori ini pernah ditulis "Hampir tidak memengaruhi risiko" dan itu
+menyesatkan: `klik_awal` yang berlabel tersebut ternyata **lebih penting** (2,1%)
+daripada `min_nilai_assessment` (1,8%) yang berlabel "Naik = lebih berisiko".
+Rentang risiko dan term importance mengukur dua hal berbeda, jadi keduanya
+harus ditampilkan bersama.
+
+`hari_terakhir_akses` pernah ikut dikumpulkan padahal sweep membuktikan
+perubahannya tidak menggeser risiko sama sekali, jadi field itu dihapus dari
+form.
 
 ## Kesulitan modul
 
@@ -205,7 +268,8 @@ Test mencakup regresi preset form, rentang fitur, pasangan modul-presentasi,
 konsistensi konfigurasi form, validitas icon Material, jalur submit (lebak patch),
 dan render kedua halaman lewat `AppTest`.
 
-AppTest tidak dapat menekan `st.form_submit_button` maupun mengemulasikan routing
-`?page=` milik `st.navigation`, jadi jalur submit diuji dengan menyalin
-`predict.py` ke file sementara lalu mengganti penjaga `if not submitted: st.stop()`
-menjadi `submitted = True`.
+AppTest bisa menekan `st.form_submit_button`, tetapi tidak bisa mengemulasikan
+routing `?page=` milik `st.navigation`. Karena itu jalur submit diuji dengan
+menyalin `predict.py` ke file sementara lalu mengganti penjaga
+`if not submitted: st.stop()` menjadi `submitted = True` — cara ini sekaligus
+menghindari model dipanggil berulang kali di setiap test.

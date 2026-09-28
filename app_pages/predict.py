@@ -4,9 +4,9 @@ import streamlit as st
 
 from src.explanation import get_local_explanation
 from src.form_config import (
-    CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FIELD_BOUNDS, FIELD_HELP,
-    FORM_DEFAULTS, FORM_SECTIONS, MODULE_FIELDS, PRESETS, SELECT_OPTIONS,
-    field_label, widget_key,
+    CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FIELD_BOUNDS, FIELDS_TAMBAHAN,
+    FORM_DEFAULTS, FORM_KOSONG, FORM_SECTIONS, MODULE_FIELDS,
+    SELECT_OPTIONS, effect_rows, field_help, field_label, widget_key,
 )
 from src.prediction import (
     artefak_siap, load_feature_ranges, load_label_encoders, load_module_stats,
@@ -16,6 +16,11 @@ from src.preprocessing import (
     build_feature_row, encode_categoricals, presentations_for,
 )
 from src.validation import validate_input
+
+# Placeholder form yang kosong. value=None + placeholder membuat kolom tampil
+# kosong tanpa mengisi angka nol yang diam-diam ikut terkirim ke model.
+PLACEHOLDER_ISI = "Isi nilai"
+PLACEHOLDER_PILIH = "Pilih salah satu"
 
 # Navbar disembunyikan, jadi setiap halaman punya judul sendiri. Judul dan
 # tombol preset berbagi satu baris rata kanan, selaras dasar dengan judul.
@@ -39,6 +44,40 @@ st.caption(
     "penjelasan lokal dari model EBM."
 )
 
+with st.expander("Panduan arah nilai setiap field", icon=":material/help:"):
+    st.caption("Nilai yang lebih tinggi tidak selalu berarti risiko lebih rendah.")
+    st.dataframe(
+        effect_rows(),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Field": st.column_config.TextColumn("Field", width="medium"),
+            "Arah nilai": st.column_config.TextColumn("Arah nilai", width="medium"),
+            "Perubahan risiko": st.column_config.ProgressColumn(
+                "Perubahan risiko",
+                min_value=0.0,
+                max_value=0.8,
+                format="%.2f",
+                help=(
+                    "Rentang probabilitas risiko: tertinggi dikurangi "
+                    "terendah sepanjang rentang nilai field."
+                ),
+            ),
+            "Penting (%)": st.column_config.ProgressColumn(
+                "Penting (%)",
+                min_value=0.0,
+                max_value=20.0,
+                format="%.1f%%",
+                help="Persentase term importance EBM.",
+            ),
+        },
+    )
+    st.caption(
+        "Catatan: hubungan ini bukan kausal dan saling tumpang tindih. "
+        "Mengubah satu field ikut menggeser fitur turunan, jadi jangan dibaca "
+        "sebagai kontribusi per field secara terpisah."
+    )
+
 # Default form hanya perlu di-seed sekali; setelah itu session state yang dipakai.
 for field, default in FORM_DEFAULTS.items():
     st.session_state.setdefault(widget_key(field), default)
@@ -59,29 +98,41 @@ with module_col:
     code_module = st.selectbox(
         field_label("code_module"),
         SELECT_OPTIONS["code_module"],
-        help=FIELD_HELP.get("code_module"),
+        help=field_help("code_module"),
         key=widget_key("code_module"),
+        index=None,
+        placeholder=PLACEHOLDER_PILIH,
     )
 with presentation_col:
     available_presentations = presentations_for(code_module, module_stats)
     current = st.session_state[widget_key("code_presentation")]
-    if current not in available_presentations:
+    # Pilihan otomatis hanya berlaku setelah modul dipilih. Tanpa penjaga ini,
+    # modul kosong akan langsung memaksa presentasi terisi lagi sehingga form
+    # tidak pernah benar-benar kosong.
+    if code_module and current not in available_presentations:
         st.session_state[widget_key("code_presentation")] = available_presentations[0]
     code_presentation = st.selectbox(
         field_label("code_presentation"),
         available_presentations,
-        help=FIELD_HELP.get("code_presentation"),
+        help=field_help("code_presentation"),
         key=widget_key("code_presentation"),
+        index=None,
+        placeholder=PLACEHOLDER_PILIH,
     )
 
-st.caption(
-    f"Pass rate modul {code_module}: "
-    f"{module_stats['module_pass_rate'].get(code_module, float('nan')):.1%} | "
-    f"Pass rate modul + presentasi: "
-    f"{module_stats['presentation_pass_rate'].get(f'{code_module}_{code_presentation}', float('nan')):.1%}"
-    if module_stats
-    else "Statistik modul tidak tersedia, skor kesulitan memakai nilai default global."
-)
+if not module_stats:
+    st.caption(
+        "Statistik modul tidak tersedia, skor kesulitan memakai nilai default global."
+    )
+elif code_module and code_presentation:
+    st.caption(
+        f"Pass rate modul {code_module}: "
+        f"{module_stats['module_pass_rate'].get(code_module, float('nan')):.1%} | "
+        f"Pass rate modul + presentasi: "
+        f"{module_stats['presentation_pass_rate'].get(f'{code_module}_{code_presentation}', float('nan')):.1%}"
+    )
+else:
+    st.caption("Pilih kode modul dan presentasi untuk melihat pass rate.")
 
 
 def render_field(field: str):
@@ -93,8 +144,10 @@ def render_field(field: str):
         return st.selectbox(
             label,
             SELECT_OPTIONS[field],
-            help=FIELD_HELP.get(field),
+            help=field_help(field),
             key=key,
+            index=None,
+            placeholder=PLACEHOLDER_PILIH,
         )
 
     low, high, step = FIELD_BOUNDS[field]
@@ -103,33 +156,58 @@ def render_field(field: str):
         min_value=low,
         max_value=high,
         step=step,
-        help=FIELD_HELP.get(field),
+        help=field_help(field),
         key=key,
+        value=None,
+        placeholder=PLACEHOLDER_ISI,
     )
 
 
 form_values: dict = {}
 
+
+def render_field_group(fields: list[str]) -> None:
+    """Render sekumpulan field dalam tiga kolom, isi form_values."""
+    buckets: list[list[str]] = [[] for _ in range(3)]
+    for position, field in enumerate(fields):
+        buckets[position % 3].append(field)
+
+    for column, bucket in zip(st.columns(3), buckets):
+        with column:
+            for field in bucket:
+                form_values[field] = render_field(field)
+
+
 with st.form("prediction_form"):
     for title, fields in FORM_SECTIONS:
         st.subheader(title, anchor=False)
+        # Field berlabel "pengaruh kecil" dipindah ke expander di bawah, supaya
+        # bagian utama tidak dipenuhi field yang pengaruhnya kecil.
+        utama = [f for f in fields if f not in FIELDS_TAMBAHAN]
+        render_field_group(utama)
 
-        buckets: list[list[str]] = [[] for _ in range(3)]
-        for position, field in enumerate(fields):
-            buckets[position % 3].append(field)
-
-        for column, bucket in zip(st.columns(3), buckets):
-            with column:
-                for field in bucket:
-                    form_values[field] = render_field(field)
+    # Field di expander TETAP bagian dari form, jadi nilainya ikut terkirim saat
+    # submit. Expander ini menutup, bukan membuang input.
+    with st.expander(
+        f"Field tambahan ({len(FIELDS_TAMBAHAN)}) -- pengaruh kecil", icon=":material/expand_more:"
+    ):
+        st.caption(
+            "Field di sini tetap dipakai model, jadi nilainya ikut dihitung. "
+            "Hanya rentang risikonya yang kecil dan tidak monoton, jadi tidak "
+            "buka kecuali memang perlu menyetelnya."
+        )
+        render_field_group(FIELDS_TAMBAHAN)
 
     submitted = st.form_submit_button(
         "Prediksi risiko", icon=":material/search:", type="primary", width="stretch"
     )
+    # Widget biasa di dalam st.form tidak memicu rerun, jadi tombol reset juga
+    # harus berupa form_submit_button agar bisa diklik. Keduanya terpisah key,
+    # sehingga hanya tombol yang diklik yang bernilai True.
+    reset_clicked = st.form_submit_button("Reset form", width="stretch")
 
-# Tepat di bawah tombol submit, lebarnya sama agar rata dengan form.
-if st.button("Reset form", width="stretch"):
-    st.session_state["pending_preset"] = PRESETS["Reset form"]
+if reset_clicked:
+    st.session_state["pending_preset"] = FORM_KOSONG
     st.rerun()
 
 if not submitted:
@@ -210,28 +288,39 @@ with result_holder:
                 color=["red", "green"],
                 x_label="Skor kontribusi",
             )
-
-            with st.expander("Rincian faktor", icon=":material/list:"):
-                for position, item in enumerate(explanation, 1):
-                    st.markdown(
-                        f"{position}. **{item['feature']}** — "
-                        f"{item['direction']} ({item['score']:+.4f})"
-                    )
         else:
             st.warning("Penjelasan lokal tidak tersedia.", icon=":material/error:")
 
-    st.caption(
-        "Prediksi ini adalah keluaran model machine learning, bukan keputusan "
-        "akademik final."
-    )
+# Tabel rincian dibuat selebar halaman, sejajar dengan dua expander detail di
+# bawahnya, supaya ketiganya punya lebar dan indentasi yang sama.
+if explanation:
+    with st.expander("Rincian faktor", icon=":material/list:"):
+        st.dataframe(
+            pd.DataFrame({
+                "Peringkat": range(1, len(explanation) + 1),
+                "Fitur": [item["feature"] for item in explanation],
+                "Arah": [item["direction"] for item in explanation],
+                "Skor kontribusi": [item["score"] for item in explanation],
+            }),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "Peringkat": st.column_config.NumberColumn(
+                    "Peringkat", format="%d", width="small"
+                ),
+                "Arah": st.column_config.TextColumn("Arah", width="medium"),
+                "Skor kontribusi": st.column_config.NumberColumn(
+                    "Skor kontribusi",
+                    format="%+.4f",
+                    help=(
+                        "Nilai negatif mendorong ke risiko, nilai "
+                        "positif mendorong ke tidak berisiko."
+                    ),
+                ),
+            },
+        )
 
 with st.expander("Skor kesulitan yang dihitung otomatis", icon=":material/functions:"):
-    st.caption(
-        f"Tiga fitur kesulitan dihitung dari `module_stats.json` memakai modul "
-        f"**{code_module}** dan presentasi **{code_presentation}**, bukan diisi "
-        "manual. Formula: `1 - pass rate`."
-    )
-
     rate_modul, rate_pres, rate_global = st.columns(3)
     if module_stats:
         rate_modul.metric(

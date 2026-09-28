@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import streamlit as st
 
-from src.assets import ASSETS_DIR, FIGURES, asset_path
+from src.assets import FIGURES, asset_path
 from src.config import (
     CODE_MODULES, CODE_PRESENTATIONS, DERIVED_FEATURES, FEATURES_DIFFICULTY,
     GLOBAL_PASS_RATE, MODEL_INFO, REQUIRED_INPUT_FIELDS, THRESHOLD,
@@ -13,7 +13,7 @@ from src.form_config import (
     CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FIELD_BOUNDS,
     NON_MODEL_FORM_FIELDS,
 )
-from src.prediction import MODELS_DIR, artefak_siap
+from src.prediction import MODELS_DIR
 
 # Navbar disembunyikan, jadi setiap halaman punya judul sendiri.
 # anchor=False menyembunyikan ikon tautan yang muncul saat hover di kanan heading.
@@ -91,32 +91,37 @@ st.markdown(
 )
 
 st.subheader("Struktur input", anchor=False)
-non_model = ", ".join(f"`{f}`" for f in NON_MODEL_FORM_FIELDS) or "tidak ada"
-st.markdown(
-    f"""
-    - Field yang diisi pengguna: **{len(REQUIRED_INPUT_FIELDS)}**, termasuk
-      `code_module` dan `code_presentation`.
-    - Field form yang bukan fitur model: **{len(NON_MODEL_FORM_FIELDS)}**
-      ({non_model}).
-    - Fitur turunan: {len(DERIVED_FEATURES)}.
-    - Fitur kesulitan: {len(FEATURES_DIFFICULTY)}.
-    - Kode modul: {', '.join(CODE_MODULES)}.
-    - Kode presentasi: {', '.join(CODE_PRESENTATIONS)}.
-    """
-)
+baris_input = [
+    f"- Field yang diisi pengguna: **{len(REQUIRED_INPUT_FIELDS)}**, termasuk "
+    "`code_module` dan `code_presentation`.",
+    f"- Fitur turunan: {len(DERIVED_FEATURES)}.",
+    f"- Fitur kesulitan: {len(FEATURES_DIFFICULTY)}.",
+    f"- Kode modul: {', '.join(CODE_MODULES)}.",
+    f"- Kode presentasi: {', '.join(CODE_PRESENTATIONS)}.",
+]
+if NON_MODEL_FORM_FIELDS:
+    non_model = ", ".join(f"`{f}`" for f in NON_MODEL_FORM_FIELDS)
+    baris_input.insert(
+        1,
+        f"- Field form yang bukan fitur model: **{len(NON_MODEL_FORM_FIELDS)}** "
+        f"({non_model}).",
+    )
+st.markdown("\n".join(baris_input))
 
 with st.expander("Contoh nilai preset", icon=":material/tune:"):
+    st.caption(
+        "Tombol Reset form tidak memakai preset: dia mengosongkan semua kolom "
+        "supaya bisa diisi dari nol."
+    )
     st.dataframe(
         {
             "Field": [
                 "Contoh berisiko",
                 "Contoh tidak berisiko",
-                "Reset form",
             ],
             "Jarak akses terakhir": [
                 CONTOH_BERISIKO["jarak_akses_terakhir"],
                 CONTOH_TIDAK_BERISIKO["jarak_akses_terakhir"],
-                FIELD_BOUNDS["jarak_akses_terakhir"][0],
             ],
         },
         hide_index=True,
@@ -145,10 +150,3 @@ if os.path.isdir(MODELS_DIR):
         st.warning("Folder `models/` kosong.")
 else:
     st.warning("Folder `models/` tidak ditemukan.")
-
-n_assets = len(os.listdir(ASSETS_DIR)) if os.path.isdir(ASSETS_DIR) else 0
-st.caption(
-    "Artefak model: "
-    + ("lengkap" if artefak_siap() else "belum lengkap")
-    + f". Folder `assets/` berisi {n_assets} gambar."
-)

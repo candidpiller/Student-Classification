@@ -13,7 +13,11 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F1F5F9"
 textColor = "#0F172A"
 borderColor = "#CBD5E1"
-codeBackgroundColor = "#F1F5F9"
+# Inline code tanpa kotak abu-abu: background-nya disamakan dengan background
+# halaman, jadi yang terlihat hanya teks monospace-nya. `codeTextColor` di bawah
+# mencegah warna merah bawaan Streamlit yang kontrasnya rendah.
+codeBackgroundColor = "#FFFFFF"
+codeTextColor = "#0F172A"
 
 redColor = "#DC2626"
 orangeColor = "#D97706"
@@ -32,6 +36,8 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F1F5F9"
 textColor = "#0F172A"
 borderColor = "#CBD5E1"
+codeBackgroundColor = "#FFFFFF"
+codeTextColor = "#0F172A"
 redColor = "#DC2626"
 greenColor = "#16A34A"
 blueColor = "#1D4ED8"
@@ -47,6 +53,11 @@ backgroundColor = "#0F172A"
 secondaryBackgroundColor = "#1E293B"
 textColor = "#E2E8F0"
 borderColor = "#334155"
+# Mode gelap tidak bisa pakai hitam: background-nya #0F172A, jadi teks code
+# memakai warna terang yang sama dengan body text. Background code disamakan
+# dengan background halaman supaya kotaknya tidak terlihat.
+codeBackgroundColor = "#0F172A"
+codeTextColor = "#E2E8F0"
 redColor = "#F87171"
 greenColor = "#4ADE80"
 blueColor = "#60A5FA"
@@ -59,10 +70,14 @@ chartCategoricalColors = [
 [theme.light.sidebar]
 backgroundColor = "#F8FAFC"
 borderColor = "#CBD5E1"
+codeBackgroundColor = "#F8FAFC"
+codeTextColor = "#0F172A"
 
 [theme.dark.sidebar]
 backgroundColor = "#111C33"
 borderColor = "#334155"
+codeBackgroundColor = "#111C33"
+codeTextColor = "#E2E8F0"
 
 [browser]
 gatherUsageStats = false

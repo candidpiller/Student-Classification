@@ -169,6 +169,40 @@ def test_categorical_values_skipped_by_range_check():
     assert is_valid, errors
 
 
+def test_form_kosong_gagal_dengan_satu_pesan():
+    """Semua field None (hasil Reset form) harus jadi satu pesan, bukan puluhan."""
+    from src.form_config import FORM_KOSONG
+
+    is_valid, errors = validate_input(dict(FORM_KOSONG))
+
+    assert not is_valid
+    belum_disi = [e for e in errors if "belum diisi" in e]
+    assert len(belum_disi) == 1, errors
+    # Field kosong tidak boleh dilaporkan dua kali lewat error lain.
+    assert len(errors) == 1, errors
+    # Pesan harus pakai label ramah, bukan nama kolom mentah.
+    assert "total_click_events" not in belum_disi[0]
+    assert "Total click events" in belum_disi[0]
+
+
+def test_field_kosong_sisanya_masih_divalidasi():
+    """Satu field kosong tidak boleh membebaskan field lain dari pemeriksaan."""
+    is_valid, errors = validate_input(_valid_data(jumlah_hari_akses=None))
+
+    assert not is_valid
+    assert any("belum diisi" in e and "Jumlah hari akses" in e for e in errors)
+
+
+def test_form_kosong_tidak_memicu_error_kategorikal():
+    """Field None tidak boleh ikut dianggap "nilai tidak dikenal"."""
+    from src.form_config import FORM_KOSONG
+
+    _, errors = validate_input(dict(FORM_KOSONG))
+
+    assert not any("tidak valid untuk kolom" in e for e in errors), errors
+    assert not any("tidak dikenal" in e for e in errors), errors
+
+
 def test_real_feature_ranges_file_is_consumed():
     """Pastikan file models/feature_ranges.json benar-benar terpakai validasi."""
     from src.prediction import load_feature_ranges

@@ -7,6 +7,7 @@ from src.config import (
     CATEGORICAL_COLS, CODE_MODULES, CODE_PRESENTATIONS, DEFAULT_CATEGORIES,
     REQUIRED_INPUT_FIELDS,
 )
+from src.form_config import field_label
 from src.preprocessing import pair_is_valid, presentations_for
 
 
@@ -36,34 +37,49 @@ def validate_input(
 ) -> tuple[bool, list[str]]:
     """Validasi input user. Returns (is_valid, list_of_errors)."""
     errors = []
+    belum_disi: list[str] = []
 
     for field in REQUIRED_INPUT_FIELDS:
         if field not in data or data[field] is None:
-            errors.append(f"Field '{field}' belum diisi.")
+            belum_disi.append(field)
             continue
         val = data[field]
         if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
             errors.append(f"Field '{field}' mengandung nilai tidak valid (NaN/Inf).")
 
+    # Form sengaja bisa dikosongkan lewat tombol Reset form, jadi daftar field
+    # kosong digabung jadi satu pesan. Kalau satu per satu, mengosongkan form
+    # akan memunculkan puluhan baris error sekaligus.
+    if belum_disi:
+        errors.insert(0, "Field berikut belum diisi: " + ", ".join(
+            field_label(field) for field in belum_disi
+        ) + ".")
+
+    # Field kosong sudah dilaporkan di atas. Semuanya dilewati supaya tidak
+    # muncul dua kali: satu sebagai "belum diisi", satu lagi sebagai
+    # "nilai tidak dikenal".
     for col in CATEGORICAL_COLS:
-        if col in data and col in DEFAULT_CATEGORIES:
+        if col in data and col in DEFAULT_CATEGORIES and data[col] is not None:
             if data[col] not in DEFAULT_CATEGORIES[col]:
                 errors.append(f"Nilai '{data[col]}' tidak valid untuk kolom '{col}'.")
 
-    if "code_module" in data and data["code_module"] not in CODE_MODULES:
+    if data.get("code_module") is not None and data["code_module"] not in CODE_MODULES:
         errors.append(f"Kode modul '{data['code_module']}' tidak dikenal.")
 
-    if "code_presentation" in data and data["code_presentation"] not in CODE_PRESENTATIONS:
-        errors.append(f"Kode presentasi '{data['code_presentation']}' tidak dikenal.")
-    elif module_stats and "code_module" in data and not pair_is_valid(
-        data["code_module"], data["code_presentation"], module_stats
+    if (
+        "code_presentation" in data
+        and data["code_presentation"] is not None
+        and data["code_presentation"] not in CODE_PRESENTATIONS
     ):
-        valid = presentations_for(data["code_module"], module_stats)
-        errors.append(
-            f"Modul '{data['code_module']}' tidak pernah di buka dengan presentasi "
-            f"'{data['code_presentation']}'. Presentasi yang tersedia: "
-            f"{', '.join(valid)}."
-        )
+        errors.append(f"Kode presentasi '{data['code_presentation']}' tidak dikenal.")
+    elif module_stats and data.get("code_module") and data.get("code_presentation"):
+        if not pair_is_valid(data["code_module"], data["code_presentation"], module_stats):
+            valid = presentations_for(data["code_module"], module_stats)
+            errors.append(
+                f"Modul '{data['code_module']}' tidak pernah di buka dengan presentasi "
+                f"'{data['code_presentation']}'. Presentasi yang tersedia: "
+                f"{', '.join(valid)}."
+            )
 
     if "min_nilai_assessment" in data and "max_nilai_assessment" in data:
         try:
