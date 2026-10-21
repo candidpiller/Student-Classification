@@ -45,7 +45,14 @@ st.caption(
 )
 
 with st.expander("Panduan arah nilai setiap field", icon=":material/help:"):
-    st.caption("Nilai yang lebih tinggi tidak selalu berarti risiko lebih rendah.")
+    st.caption(
+        "Nilai yang lebih tinggi tidak selalu berarti risiko lebih rendah. "
+        "Arah diukur langsung dari model: satu field dinaikkan sepanjang "
+        "rentangnya (21 titik) sementara field lain ditahan pada profil "
+        "contoh tidak berisiko, lalu bentuk respons risikonya diamati dari "
+        "seluruh kurva. Jadi ini efek marginal satu field, bukan perbandingan "
+        "dua profil."
+    )
     st.dataframe(
         effect_rows(),
         width="stretch",
@@ -56,7 +63,7 @@ with st.expander("Panduan arah nilai setiap field", icon=":material/help:"):
             "Perubahan risiko": st.column_config.ProgressColumn(
                 "Perubahan risiko",
                 min_value=0.0,
-                max_value=0.8,
+                max_value=1.0,
                 format="%.2f",
                 help=(
                     "Rentang probabilitas risiko: tertinggi dikurangi "
@@ -75,7 +82,10 @@ with st.expander("Panduan arah nilai setiap field", icon=":material/help:"):
     st.caption(
         "Catatan: hubungan ini bukan kausal dan saling tumpang tindih. "
         "Mengubah satu field ikut menggeser fitur turunan, jadi jangan dibaca "
-        "sebagai kontribusi per field secara terpisah."
+        "sebagai kontribusi per field secara terpisah. Field non-monoton hanya "
+        "menggambarkan bentuk responsnya, bukan aturan arah. Dua contoh "
+        "profil di aplikasi berbeda di puluhan field sekaligus, jadi "
+        "risikonya tidak boleh disimpulkan dari perbandingan keduanya."
     )
 
 # Default form hanya perlu di-seed sekali; setelah itu session state yang dipakai.
@@ -193,8 +203,8 @@ with st.form("prediction_form"):
     ):
         st.caption(
             "Field di sini tetap dipakai model, jadi nilainya ikut dihitung. "
-            "Hanya rentang risikonya yang kecil dan tidak monoton, jadi tidak "
-            "buka kecuali memang perlu menyetelnya."
+            "Hanya rentang risikonya yang kecil, jadi arahnya tidak berarti "
+            "dan tidak perlu dibuka kecuali memang perlu menyetelnya."
         )
         render_field_group(FIELDS_TAMBAHAN)
 

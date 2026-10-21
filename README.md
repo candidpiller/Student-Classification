@@ -56,6 +56,20 @@ terlebih dahulu bila memang akan menjalankannya:
 pip install kagglehub
 ```
 
+### Regenerasi tabel arah nilai
+
+Tabel arah nilai di `src/form_config.py` (`FIELD_EFFECT`) diukur dari model EBM
+yang terpasang. Untuk memperbaruinya — misalnya setelah model dilatih ulang:
+
+```bash
+python scripts/generate_field_effect.py
+```
+
+Script menyapu tiap field sepanjang rentangnya (21 titik) pada profil
+`CONTOH_TIDAK_BERISIKO`, mencetak blok `FIELD_EFFECT` yang baru untuk
+disalin ke `src/form_config.py`, dan sekaligus memeriksa apakah panduan itu
+masih sejalan dengan dua contoh profil di aplikasi.
+
 ## Menjalankan aplikasi
 
 ```bash
@@ -147,7 +161,8 @@ student-classification/
 ├── models/                      # Artefak model
 ├── assets/                      # Gambar visualisasi
 ├── scripts/
-│   └── generate_feature_ranges.py
+│   ├── generate_feature_ranges.py
+│   └── generate_field_effect.py
 └── tests/
 ```
 
@@ -169,21 +184,38 @@ field diukur **langsung dari model EBM**, bukan dari asumsi umum, lalu hasilnya
 ditampilkan di aplikasi: di tooltip setiap input dan di tabel referensi di dalam
 expander "Panduan arah nilai setiap field".
 
-Cara mengukurnya: satu field dinaikkan sepanjang rentangnya dalam lima titik sama
-jarak, sementara field lain ditahan pada profil `CONTOH_TIDAK_BERISIKO` (risiko
+### Cara mengukur
+
+Satu field dinaikkan sepanjang rentangnya dalam **21 titik** sama jarak,
+sementara field lain ditahan pada profil `CONTOH_TIDAK_BERISIKO` (risiko
 0,1386, jadi tidak jenuh di batas). Angka yang disimpan adalah **rentang**
 probabilitas risiko, yaitu tertinggi dikurangi terendah — bukan selisih kedua
 ujung, karena field non-monoton punya selisih ujung kecil padahal risikonya
 bergerak jauh di tengah rentang.
 
-Empat kategori yang muncul:
+Arahnya ditentukan dari **seluruh kurva** (`src/prediction.py` →
+`classify_direction`), bukan dari dua ujungnya saja. Ini penting: versi lama
+hanya membandingkan nilai pertama dan terakhir, sehingga kurva EBM yang
+naik-turun di tengah tetap diklaim sebagai "Naik = lebih berisiko" atau "Naik =
+lebih aman". Contoh konkretnya `jumlah_assessment`: pada profil yang sama, nilai
+2 lebih berisiko daripada nilai 12 — persis bertentangan dengan contoh profil
+yang ada di aplikasi. Field itu sekarang berlabel "tidak monoton", karena memang
+tidak ada aturan monoton padanya.
+
+Lima kategori yang muncul:
 
 | Arah | Arti |
 |------|------|
 | Naik = lebih aman | Nilai lebih tinggi menurunkan risiko |
 | Naik = lebih berisiko | Nilai lebih tinggi menaikkan risiko |
-| Terbaik di tengah rentang | Non-monoton, risiko terendah ada di tengah |
-| Pengaruh kecil, tidak monoton, tetap dipakai model | Di bawah ambang 0,10 |
+| Puncak risiko di tengah rentang | Non-monoton, risiko tertinggi ada di tengah |
+| Tidak monoton: risiko naik-turun | Non-monoton tanpa puncak yang mencolok, tidak ada aturan arah |
+| Pengaruh kecil: arah tidak berarti, tetap dipakai model | Di bawah ambang 0,10 |
+
+Hanya empat field yang benar-benar punya arah monoton — `jarak_akses_terakhir`,
+`tren_klik`, dan `kemiringan_klik_mingguan` (naik = lebih aman) serta
+`jumlah_assessment_banked` (naik = lebih berisiko). Sisanya memang tidak
+monoton; itu sifat kurva EBM, bukan kesalahan pengukuran.
 
 Tiga hal yang mungkin counterintuitive dan perlu diperhatikan:
 
@@ -192,9 +224,25 @@ Tiga hal yang mungkin counterintuitive dan perlu diperhatikan:
   tidak diakses": negatif berarti mahasiswa berhenti sebelum modul dimulai,
   tinggi berarti masih aktif sampai modul mendekati selesai. Karena itu labelnya
   diubah menjadi "Hari akses terakhir (relatif)".
-- **`jumlah_assessment`** (12%) lebih tinggi justru lebih berisiko.
-- **`total_click_events`** pengaruhnya kecil dan tidak monoton, meski secara
-  intuisi "makin aktif makin baik".
+- **`jumlah_assessment`** (12%) **tidak punya arah**: risikonya naik-turun
+  sepanjang rentang, jadi tidak boleh diklaim "naik = lebih berisiko".
+- **`total_click_events`** juga tidak monoton, meski secara intuisi "makin
+  aktif makin baik".
+
+### Panduan dan contoh profil harus sejalan
+
+Karena efek diukur secara marginal (satu field diubah, field lain ditahan),
+arah pada tabel **tidak boleh dibaca dari perbandingan dua contoh profil**:
+`Contoh berisiko` dan `Contoh tidak berisiko` berbeda di puluhan field
+sekaligus. Yang boleh disimpulkan cuma satu: untuk field yang berarah monoton,
+nilai pada `Contoh berisiko` harus berada di sisi yang lebih berisiko dibanding
+`Contoh tidak berisiko`.
+
+Aturan itu dijaga test di `tests/test_form_config.py`, dan
+`scripts/generate_field_effect.py` ikut memverifikasinya setiap kali tabel
+diregenerasi. Itulah sebabnya `jumlah_assessment_banked` bernilai 2 pada contoh
+berisiko: hasil ukur model menunjukkan makin banyak assessment yang memakai
+nilai banked, makin tinggi risikonya.
 
 Angka-angka ini disimpan di `FIELD_EFFECT` (`src/form_config.py`) supaya tidak
 perlu memanggil model berulang kali hanya untuk menyusun tabel. Test
@@ -206,20 +254,19 @@ definisinya tidak menyimpang.
 
 ### Field berlabel "pengaruh kecil" tidak bisa dihapus
 
-Lima field masuk kategori tersebut: `klik_awal`, `std_click_events`,
-`total_click_events`, `konsistensi_keterlibatan`, dan `std_nilai_assessment`.
-Semuanya **fitur langsung model** — mengacaukan `predict_student` dengan
-`KeyError`, dan mempatoknya ke default masih menggeser risiko 0,009–0,035.
-Jadi kelima field itu **dilipat ke expander "Field tambahan"**, bukan dibuang.
-Nilai di dalam expander tetap bagian dari `st.form` sehingga tetap ikut
-terkirim saat submit, dan `tests/test_app.py` memverifikasi bahwa mengubahnya
-sungguh mengubah prediksi.
+Dua field masuk kategori tersebut: `std_click_events` dan
+`konsistensi_keterlibatan`. Semuanya **fitur langsung model** — mengacaukan
+`predict_student` dengan `KeyError`, dan mempatoknya ke default masih menggeser
+risiko. Jadi kedua field itu **dilipat ke expander "Field tambahan"**, bukan
+dibuang. Nilai di dalam expander tetap bagian dari `st.form` sehingga tetap
+ikut terkirim saat submit, dan `tests/test_app.py` memverifikasi bahwa
+mengubahnya sungguh mengubah prediksi.
 
 Label kategori ini pernah ditulis "Hampir tidak memengaruhi risiko" dan itu
-menyesatkan: `klik_awal` yang berlabel tersebut ternyata **lebih penting** (2,1%)
-daripada `min_nilai_assessment` (1,8%) yang berlabel "Naik = lebih berisiko".
-Rentang risiko dan term importance mengukur dua hal berbeda, jadi keduanya
-harus ditampilkan bersama.
+menyesatkan: `std_click_events` yang berlabel tersebut ternyata **lebih penting**
+(1,5%) daripada `tren_klik` (0,7%) yang berlabel "Naik = lebih aman". Rentang
+risiko dan term importance mengukur dua hal berbeda, jadi keduanya harus
+ditampilkan bersama.
 
 `hari_terakhir_akses` pernah ikut dikumpulkan padahal sweep membuktikan
 perubahannya tidak menggeser risiko sama sekali, jadi field itu dihapus dari

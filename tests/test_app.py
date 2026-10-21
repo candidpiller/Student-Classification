@@ -166,6 +166,39 @@ def test_predict_button_still_submits(at):
     assert "Probabilitas berisiko" in [m.label for m in at.metric]
 
 
+class TestHasilPreset:
+    """Tombol contoh harus benar-benar menghasilkan klasifikasi yang dijanjikan.
+
+    Label tombol ("Contoh berisiko" / "Contoh tidak berisiko") adalah klaim
+    ke pengguna. Kalau modelnya bilang sebaliknya, panduan arah nilai dan
+    contohnya jadi saling bertentangan.
+    """
+
+    def test_contoh_berisiko_diklasifikasikan_berisiko(self, at):
+        _button(at, "Contoh berisiko").click()
+        at.run()
+        _button(at, "Prediksi risiko").click()
+        at.run()
+
+        assert not at.exception
+        assert "Berisiko" in [e.value for e in at.error], (
+            "preset 'Contoh berisiko' tidak menghasilkan label Berisiko"
+        )
+        assert "Tidak berisiko" not in [s.value for s in at.success]
+
+    def test_contoh_tidak_berisiko_diklasifikasikan_tidak_berisiko(self, at):
+        _button(at, "Contoh tidak berisiko").click()
+        at.run()
+        _button(at, "Prediksi risiko").click()
+        at.run()
+
+        assert not at.exception
+        assert "Tidak berisiko" in [s.value for s in at.success], (
+            "preset 'Contoh tidak berisiko' tidak menghasilkan label Tidak berisiko"
+        )
+        assert "Berisiko" not in [e.value for e in at.error]
+
+
 class TestPanduanArahNilai:
     """Tabel arah nilai dan petunjuk per-field yang tampil di halaman prediksi."""
 
@@ -191,15 +224,14 @@ class TestPanduanArahNilai:
         assert penting == sorted(penting, reverse=True)
 
     def test_setiap_widget_numerik_punya_petunjuk_arah(self, at):
-        from src.form_config import DIRECTION_LABEL, FIELD_EFFECT, FIELD_LABELS
+        from src.form_config import DIRECTION_LABEL, FIELD_EFFECT
 
         for nomor in at.number_input:
-            field = next(
-                (f for f in FIELD_EFFECT
-                 if nomor.label.startswith(FIELD_LABELS[f])),
-                None,
-            )
-            assert field is not None, f"tidak ada field cocok untuk {nomor.label!r}"
+            # Field dicocokkan lewat key widget, bukan lewat awalan label:
+            # "Jumlah assessment" juga merupakan awalan dari "Jumlah assessment
+            # banked", jadi pencocokan label bisa salah pilih field.
+            field = nomor.key.removeprefix("f_")
+            assert field in FIELD_EFFECT, f"widget {nomor.key} tidak punya efek"
             assert DIRECTION_LABEL[FIELD_EFFECT[field]["arah"]] in (nomor.help or ""), (
                 f"{field}: help widget tidak menyebut arah pengaruhnya"
             )

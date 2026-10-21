@@ -5,10 +5,13 @@ import json
 import os
 
 import joblib
+import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.config import FEATURE_ORDER, LABEL_MAP, NUMERIC_COLS, THRESHOLD
+from src.config import (
+    AMBANG_EFFECT, FEATURE_ORDER, LABEL_MAP, NUMERIC_COLS, THRESHOLD,
+)
 from src.preprocessing import build_feature_row, encode_categoricals
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
@@ -121,7 +124,95 @@ def predict_students(raw_inputs: list[dict]) -> list[dict]:
 # Jumlah titik yang dipakai saat mengukur arah pengaruh sebuah field. Nilai ini
 # dipakai ulang oleh test, supaya hasil ukur ulang benar-benar bisa dibandingkan
 # dengan angka yang tersimpan di FIELD_EFFECT.
-SWEEP_POINTS = 5
+#
+# Lima titik (lama) terlalu sedikit: EBM menghasilkan kurva anak tangga, jadi
+# lima titik sering hanya memotong puncak atau lembah dan membuat kurva yang
+# sebenarnya berayun terlihat monoton. Dua puluh satu titik cukup untuk melihat
+# bentuk kurvanya.
+SWEEP_POINTS = 21
+
+# Lebar jendela perata-rata bergerak. Satu titik ekstrem di ujung rentang
+# tidak boleh sendirian menentukan arah.
+SMOOTH_WINDOW = 3
+
+# Ambang rasio monoton: besar dari perubahan absolut kurva yang searah dengan
+# perubahan dari ujung ke ujung. 1.0 = benar-benar monoton, 0 = bolak-balik
+# penuh. Di bawah 0.85 kurva dianggap naik-turun, bukan aturan bersih.
+RASIO_MONOTON = 0.85
+
+# Selisih minimum (fraksi dari rentang) agar puncak kurva boleh disebut
+# "di tengah rentang".
+TOL_PUNCAK = 0.10
+
+# Seberapa jauh dari titik tengah puncak boleh berada, dinormalisasi ke 0..1.
+# 0.5 berarti puncak masih dianggap di tengah rentang.
+TOL_POSISI_PUNCAK = 0.5
+
+
+def _haluskan(nilai: list[float], window: int) -> np.ndarray:
+    """Rata-rata bergerak dengan tepi dirata. Menembus noise satu titik."""
+    arr = np.asarray(nilai, dtype=float)
+    if window <= 1 or arr.size < window:
+        return arr
+    pad = window // 2
+    tepi = np.concatenate([np.full(pad, arr[0]), arr, np.full(pad, arr[-1])])
+    return np.convolve(tepi, np.ones(window) / window, mode="valid")
+
+
+def _rasio_monoton(halus: np.ndarray) -> float:
+    """Seberapa konsisten arah kurva: 1 monoton naik, -1 monoton turun."""
+    diff = np.diff(halus)
+    total = float(np.abs(diff).sum())
+    if total <= 0:
+        return 0.0
+    return float((halus[-1] - halus[0]) / total)
+
+
+def classify_direction(risks: list[float], rentang: float) -> str:
+    """Tentukan arah pengaruh dari kurva risiko, bukan dari dua ujung saja.
+
+    Versi lama hanya membandingkan nilai pertama dan terakhir, sehingga kurva
+    yang berayun di tengah tetap diberi label "Naik = lebih berisiko" atau
+    "Naik = lebih aman". Padahal kalau pengguna menggeser slider ke arah yang
+    diklaim menaikkan risiko, model bisa justru menurunkan risiko di sana.
+
+    Aturan baru:
+        rentang < AMBANG_EFFECT  -> "netral" (efek terlalu kecil untuk
+                                    disebut berarah)
+        kurva monoton naik/turun  -> "naik_berisiko" / "naik_aman"
+        puncak di tengah rentang   -> "risiko_puncak_tengah"
+        lainnya                   -> "tidak_monoton"
+    """
+    if rentang < AMBANG_EFFECT:
+        return "netral"
+
+    halus = _haluskan(risks, SMOOTH_WINDOW)
+    rasio = _rasio_monoton(halus)
+    if rasio >= RASIO_MONOTON:
+        return "naik_berisiko"
+    if rasio <= -RASIO_MONOTON:
+        return "naik_aman"
+
+    # Puncak di tengah rentang: titik tertinggi kurva ada di bagian tengah
+    # dan jelas lebih tinggi daripada kedua ujung.
+    #
+    # Puncak sering berupa plat datar (EBM menghasilkan kurva anak tangga),
+    # jadi posisinya diambil dari titik tengah plat itu. Kalau hanya dipakai
+    # indeks pertama yang menyentuh nilai maksimum, puncak simetris selalu
+    # dianggap di sebelah kiri tengah dan salah dilaporkan sebagai
+    # "tidak monoton".
+    n = halus.size
+    maks = float(halus.max())
+    datar = np.flatnonzero(halus >= maks - 1e-9)
+    puncak = int(round(float(datar.mean())))
+    jarak_puncak = abs(puncak - (n - 1) / 2) / max((n - 1) / 2, 1)
+    ujung = max(float(halus[0]), float(halus[-1]))
+    if (
+        jarak_puncak <= TOL_POSISI_PUNCAK
+        and float(halus[puncak]) - ujung > TOL_PUNCAK * rentang
+    ):
+        return "risiko_puncak_tengah"
+    return "tidak_monoton"
 
 
 def measure_field_effect(
@@ -139,37 +230,38 @@ def measure_field_effect(
         risiko_min / risiko_maks : nilai risiko terkecil dan terbesar di sepang
         rentang                   : risiko_maks - risiko_min, yaitu seberapa jauh
                                    risiko bergerak karena field ini saja
-        arah                      : "naik_berisiko" / "naik_aman" / "puncak_tengah"
+        arah                      : "naik_berisiko" / "naik_aman" /
+                                   "risiko_puncak_tengah" / "tidak_monoton" /
+                                   "netral"
 
     `rentang` sengaja dipakai, bukan selisih antara nilai `low` dan `high`.
     Untuk field non-monoton keduanya jauh berbeda: field yang paling aman di
     tengah rentang punya selisih ujung yang kecil padahal risikonya bergerak
     jauh sekali di tengah-tengah.
+
+    Arah ditentukan dari SELURUH kurva (lihat `classify_direction`), bukan dari
+    dua ujungnya saja, dan field yang risikonya tidak bergerak sama sekali
+    ("netral") dilaporkan apa adanya.
     """
     model = load_model()
     stats = load_module_stats()
 
-    risks = []
+    baris = []
     for i in range(points):
         nilai = low + (high - low) * i / (points - 1)
-        baris = dict(baseline)
-        baris[field] = nilai
-        X = _encode_frame([baris], stats)
-        risks.append(float(model.predict_proba(X)[0][0]))
+        row = dict(baseline)
+        row[field] = nilai
+        baris.append(row)
 
-    if risks[-1] > risks[0] and min(risks) == risks[0]:
-        arah = "naik_berisiko"
-    elif risks[-1] < risks[0] and min(risks) == risks[-1]:
-        arah = "naik_aman"
-    elif min(risks) in (risks[0], risks[-1]):
-        arah = "puncak_ujung"
-    else:
-        arah = "puncak_tengah"
+    X = _encode_frame(baris, stats)
+    risks = [float(p) for p in model.predict_proba(X)[:, 0]]
+
+    rentang = max(risks) - min(risks)
 
     return {
         "risiko_min": min(risks),
         "risiko_maks": max(risks),
-        "rentang": max(risks) - min(risks),
-        "arah": arah,
+        "rentang": rentang,
+        "arah": classify_direction(risks, rentang),
         "risiko_per_poin": risks,
     }

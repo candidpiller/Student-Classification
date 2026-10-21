@@ -72,6 +72,12 @@ CODE_PRESENTATIONS = ["2013B", "2013J", "2014B", "2014J"]
 
 THRESHOLD = 0.50
 
+# Rentang minimal (selisih probabilitas risiko tertinggi-terendah sepanjang
+# rentang nilai sebuah field) agar efek field itu disebut punya arah. Di bawah
+# ini efeknya terlalu kecil untuk dijadikan panduan, jadi field-nya berlabel
+# "netral" -- bukan berarti tidak dipakai model.
+AMBANG_EFFECT = 0.10
+
 LABEL_MAP = {
     0: "Berisiko",
     1: "Tidak Berisiko",

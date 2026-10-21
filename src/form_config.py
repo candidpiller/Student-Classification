@@ -5,8 +5,8 @@ Dipisahkan dari app_pages/predict.py supaya definisi field (label, batas,
 default) bisa dipakai ulang dan diuji tanpa menjalankan aplikasi.
 """
 from src.config import (
-    CATEGORICAL_COLS, CODE_MODULES, CODE_PRESENTATIONS, DEFAULT_CATEGORIES,
-    FEATURE_ORDER, REQUIRED_INPUT_FIELDS,
+    AMBANG_EFFECT, CATEGORICAL_COLS, CODE_MODULES, CODE_PRESENTATIONS,
+    DEFAULT_CATEGORIES, FEATURE_ORDER, REQUIRED_INPUT_FIELDS,
 )
 
 # Field yang bergantung satu sama lain dan karena itu dirender DI LUAR st.form.
@@ -193,17 +193,28 @@ FIELD_HELP = {
 #
 # Angka di bawah diukur langsung dari model EBM yang sudah dilatih, bukan
 # berdasarkan asumsi domain. Metodenya: satu field dinaikkan dari batas bawah
-# ke batas atas sambil field lain ditahan pada profil CONTOH_TIDAK_BERISIKO
-# (risiko 0.1386, jadi tidak jenuh di batas), lalu perubahan probabilitas risiko
-# diamati.
+# ke batas atas dalam 21 titik sama jarak sambil field lain ditahan pada
+# profil CONTOH_TIDAK_BERISIKO (risiko 0.1386, jadi tidak jenuh di batas),
+# lalu perubahan probabilitas risiko diamati.
 #
-#   arah     : "naik_aman"      -> nilai lebih tinggi = risiko lebih rendah
-#               "naik_berisiko"  -> nilai lebih tinggi = risiko lebih tinggi
-#               "puncak_tengah"  -> non-monoton, terendah di tengah rentang
-#               "netral"        -> efek di bawah AMBANG_EFFECT, terlalu kecil
-#                                  untuk disebut baik/buruk
+# Arah ditentukan dari SELURUH kurva risiko (src.prediction.classify_direction),
+# bukan dari dua ujungnya saja. Versi lama hanya membandingkan nilai pertama
+# dan terakhir, sehingga kurva yang naik-turun di tengah tetap diklaim sebagai
+# "Naik = lebih berisiko" atau "Naik = lebih aman" -- padahal pada contoh
+# "jumlah assessment" di aplikasi, nilai 2 (kecil) lebih berisiko daripada
+# nilai 12 (besar) pada profil yang sama. Karena itu "jumlah assessment"
+# sekarang berlabel "tidak_monoton": model memang tidak memberi aturan
+# monoton padanya.
+#
+#   arah     : "naik_aman"          -> nilai lebih tinggi = risiko lebih rendah
+#               "naik_berisiko"      -> nilai lebih tinggi = risiko lebih tinggi
+#               "risiko_puncak_tengah" -> risiko tertinggi di tengah rentang
+#               "tidak_monoton"     -> responsnya naik-turun, tidak ada aturan
+#                                        monoton yang bisa diklaim
+#               "netral"            -> efek di bawah AMBANG_EFFECT, terlalu kecil
+#                                        untuk disebut baik/buruk
 #   dampak   : RENTANG probabilitas risiko, yaitu risiko tertinggi dikurangi
-#              terendah di sepanjang rentang nilai field (5 titik sama jarak).
+#              terendah di sepanjang rentang nilai field (21 titik sama jarak).
 #              Dipakai range, bukan selisih kedua ujung, karena field non-monoton
 #              punya selisih ujung kecil padahal risikonya bergerak jauh di
 #              tengah rentang. Hitung ulang lewat
@@ -214,52 +225,66 @@ FIELD_HELP = {
 #
 # PENTING: hubungan ini tidak kausal dan tidak independen. Mengubah satu field
 # ikut menggeser fitur turunan hasil hitung_fitur_turunan, jadi efek antar
-# field saling tumpang tindih.
+# field saling tumpang tindih. Arah diukur sebagai efek MARGINAL: satu field
+# diubah, field lain ditahan. Karena itu arahnya tidak boleh dibaca dari
+# perbandingan dua contoh profil -- di situ ada ~30 field yang sekaligus
+# berbeda.
 #
-# Untuk memperbarui angka ini, jalankan ulang sweep dengan model terbaru.
+# Satu-satunya hal yang BOLEH disimpulkan dari dua contoh profil: untuk field
+# yang berarah monoton, nilai pada "Contoh berisiko" harus berada di sisi yang
+# lebih berisiko dibanding "Contoh tidak berisiko". Aturan itu dijaga test
+# (tests/test_form_config.py) supaya panduan dan contoh di aplikasi tidak
+# pernah bertentangan.
+#
 # ---------------------------------------------------------------------------
-AMBANG_EFFECT = 0.10
+# Untuk memperbarui angka ini, jalankan ulang sweep dengan model terbaru:
+#   python scripts/generate_field_effect.py
+# ---------------------------------------------------------------------------
 
 FIELD_EFFECT: dict[str, dict] = {
-    "jarak_akses_terakhir": {"arah": "naik_aman", "dampak": 0.772, "penting": 17.0},
-    "jumlah_assessment": {"arah": "naik_berisiko", "dampak": 0.435, "penting": 12.3},
-    "rata_rata_nilai_assessment": {"arah": "puncak_tengah", "dampak": 0.731, "penting": 5.1},
-    "jumlah_mahasiswa_presentasi": {"arah": "naik_berisiko", "dampak": 0.407, "penting": 4.8},
-    "rata_rata_sks_modul": {"arah": "naik_aman", "dampak": 0.146, "penting": 3.8},
-    "durasi_pembelajaran_hari": {"arah": "puncak_tengah", "dampak": 0.471, "penting": 3.6},
-    "jumlah_hari_akses": {"arah": "naik_aman", "dampak": 0.108, "penting": 2.8},
-    "klik_tengah": {"arah": "puncak_tengah", "dampak": 0.464, "penting": 2.2},
-    "klik_akhir": {"arah": "puncak_tengah", "dampak": 0.179, "penting": 2.2},
-    "klik_awal": {"arah": "netral", "dampak": 0.039, "penting": 2.1},
-    "max_nilai_assessment": {"arah": "naik_aman", "dampak": 0.128, "penting": 1.9},
-    "min_nilai_assessment": {"arah": "naik_berisiko", "dampak": 0.102, "penting": 1.8},
+    "jarak_akses_terakhir": {"arah": "naik_aman", "dampak": 0.885, "penting": 17.0},
+    "jumlah_assessment": {"arah": "tidak_monoton", "dampak": 0.618, "penting": 12.3},
+    "rata_rata_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.795, "penting": 5.1},
+    "jumlah_mahasiswa_presentasi": {"arah": "risiko_puncak_tengah", "dampak": 0.412, "penting": 4.8},
+    "rata_rata_sks_modul": {"arah": "risiko_puncak_tengah", "dampak": 0.146, "penting": 3.8},
+    "durasi_pembelajaran_hari": {"arah": "tidak_monoton", "dampak": 0.58, "penting": 3.6},
+    "jumlah_hari_akses": {"arah": "tidak_monoton", "dampak": 0.128, "penting": 2.8},
+    "klik_tengah": {"arah": "tidak_monoton", "dampak": 0.465, "penting": 2.2},
+    "klik_akhir": {"arah": "tidak_monoton", "dampak": 0.185, "penting": 2.2},
+    "klik_awal": {"arah": "tidak_monoton", "dampak": 0.1, "penting": 2.1},
+    "max_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.152, "penting": 1.9},
+    "min_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.125, "penting": 1.8},
+    "total_click_events": {"arah": "tidak_monoton", "dampak": 0.125, "penting": 1.5},
     "std_click_events": {"arah": "netral", "dampak": 0.056, "penting": 1.5},
-    "total_click_events": {"arah": "netral", "dampak": 0.038, "penting": 1.5},
-    "hari_pertama_akses": {"arah": "puncak_tengah", "dampak": 0.344, "penting": 1.4},
-    "kemiringan_klik_mingguan": {"arah": "puncak_tengah", "dampak": 0.527, "penting": 1.3},
+    "hari_pertama_akses": {"arah": "tidak_monoton", "dampak": 0.344, "penting": 1.4},
+    "kemiringan_klik_mingguan": {"arah": "naik_aman", "dampak": 0.527, "penting": 1.3},
     "jumlah_assessment_banked": {"arah": "naik_berisiko", "dampak": 0.663, "penting": 1.2},
-    "rata_rata_click_per_aktivitas": {"arah": "puncak_tengah", "dampak": 0.126, "penting": 1.2},
-    "studied_credits": {"arah": "naik_berisiko", "dampak": 0.458, "penting": 1.1},
+    "rata_rata_click_per_aktivitas": {"arah": "risiko_puncak_tengah", "dampak": 0.245, "penting": 1.2},
+    "studied_credits": {"arah": "tidak_monoton", "dampak": 0.458, "penting": 1.1},
     "konsistensi_keterlibatan": {"arah": "netral", "dampak": 0.075, "penting": 1.0},
-    "std_nilai_assessment": {"arah": "netral", "dampak": 0.048, "penting": 0.8},
-    "tren_klik": {"arah": "puncak_tengah", "dampak": 0.121, "penting": 0.7},
-    "num_of_prev_attempts": {"arah": "puncak_tengah", "dampak": 0.123, "penting": 0.1},
+    "std_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.14, "penting": 0.8},
+    "tren_klik": {"arah": "naik_aman", "dampak": 0.121, "penting": 0.7},
+    "num_of_prev_attempts": {"arah": "tidak_monoton", "dampak": 0.128, "penting": 0.1},
 }
 
 DIRECTION_LABEL = {
     "naik_aman": "Naik = lebih aman",
     "naik_berisiko": "Naik = lebih berisiko",
-    "puncak_tengah": "Terbaik di tengah rentang",
+    "risiko_puncak_tengah": "Puncak risiko di tengah rentang",
+    "tidak_monoton": "Tidak monoton: risiko naik-turun",
     # Jangan menulis "tidak memengaruhi" di sini. Semua field berlabel netral
     # tetap fitur model yang dilatih memakainya; yang kecil hanya rentang
-    # risikonya, dan arahnya tidak monoton. Klaim "tidak memengaruhi" pernah
-    # dipakai di sini dan terbukti menyesatkan: klik_awal berlabel netral
-    # ternyata lebih penting (2,1%) dari min_nilai_assessment (1,8%) yang
-    # berlabel "naik = lebih berisiko".
-    "netral": "Pengaruh kecil, tidak monoton, tetap dipakai model",
+    # risikonya. Klaim "tidak memengaruhi" pernah dipakai di sini dan terbukti
+    # menyesatkan: std_click_events berlabel netral ternyata lebih penting
+    # (1,5%) dari tren_klik (0,7%) yang berlabel "naik = lebih aman".
+    #
+    # Jangan juga menulis "tidak monoton" di sini. Field berlabel netral
+    # keluaran lebih awal, sebelum monotonitas sempat diperiksa, jadi kurvanya
+    # bisa saja monoton -- hanya terlalu kecil efeknya untuk disebut berarah.
+    "netral": "Pengaruh kecil: arah tidak berarti, tetap dipakai model",
 }
 
-# Field dengan pengaruh kecil dan tidak monoton. Semuanya fitur model, jadi TIDAK
+# Field dengan pengaruh kecil. Semuanya fitur model, jadi TIDAK
 # BOLEH dihapus dari form -- menghapusnya membuat predict_student gagal dengan
 # KeyError karena hitung_fitur_turunan dan matriks fitur masih membutuhkannya.
 # Yang dilakukan hanya memindahkannya ke expander, supaya form utama tidak
@@ -321,13 +346,30 @@ NUMERIC_FORM_FIELDS = [f for f in FORM_DEFAULTS if f not in SELECT_OPTIONS]
 # membuktikan perubahannya tidak memengaruhi risiko sama sekali.
 NON_MODEL_FORM_FIELDS: list[str] = []
 
+# Dua contoh profil di bawah harus sejalan dengan panduan arah nilai:
+#
+#   - Untuk field yang berarah monoton ("naik_berisiko" / "naik_aman"), nilai
+#     pada contoh berisiko harus berada di sisi yang lebih berisiko dibanding
+#     contoh tidak berisiko. Itulah sebabnya `jumlah_assessment_banked` bernilai
+#     2 pada contoh berisiko: hasil ukur model menunjukkan makin banyak
+#     assessment yang memakai nilai banked, makin tinggi risikonya.
+#   - Field non-monoton tidak punya aturan arah, jadi kedua contoh boleh
+#     berbeda tanpa perlu sesuai dengan suatu arah.
+#
+# Aturan pertama dijaga test di tests/test_form_config.py, supaya panduan dan
+# contoh di aplikasi tidak pernah bertentangan.
+#
+# CONTOH_TIDAK_BERISIKO sekaligus jadi baseline pengukuran FIELD_EFFECT:
+# risikonya 0.1386, cukup jauh dari batas jenuh, sehingga efek tiap field
+# masih terlihat. Mengubah baseline itu berarti semua angka FIELD_EFFECT
+# harus diukur ulang.
 CONTOH_BERISIKO = {
     "gender": "M", "region": "London Region", "highest_education": "Lower Than A Level",
     "imd_band": "20-30%", "age_band": "0-35", "disability": "Y",
     "num_of_prev_attempts": 2, "studied_credits": 120, "code_module": "CCC",
     "code_presentation": "2014B", "rata_rata_sks_modul": 60, "jumlah_mahasiswa_presentasi": 380,
     "jumlah_assessment": 2.0, "rata_rata_nilai_assessment": 45.0, "std_nilai_assessment": 12.0,
-    "min_nilai_assessment": 20.0, "max_nilai_assessment": 65.0, "jumlah_assessment_banked": 0.0,
+    "min_nilai_assessment": 20.0, "max_nilai_assessment": 65.0, "jumlah_assessment_banked": 2.0,
     "total_click_events": 250.0, "rata_rata_click_per_aktivitas": 2.2, "std_click_events": 2.0,
     "hari_pertama_akses": 25.0, "jumlah_hari_akses": 15.0,
     "durasi_pembelajaran_hari": 60.0, "klik_awal": 70.0, "klik_tengah": 60.0, "klik_akhir": 30.0,
@@ -451,6 +493,28 @@ def validate_form_config() -> list[str]:
             problems.append(
                 f"{field}: dampak {efek['dampak']} < AMBANG_EFFECT "
                 f"{AMBANG_EFFECT}, seharusnya ditandai 'netral'"
+            )
+
+    # Panduan arah nilai dan contoh profil harus sejalan. Untuk field yang
+    # berarah monoton, nilai pada preset berisiko harus berada di sisi yang
+    # lebih berisiko dibanding preset aman. Kalau tidak, pembaca aplikasi
+    # menemukan dua hal yang saling bertentangan.
+    for field, efek in FIELD_EFFECT.items():
+        if efek["arah"] not in ("naik_berisiko", "naik_aman"):
+            continue
+        nilai_berisiko = CONTOH_BERISIKO.get(field)
+        nilai_aman = CONTOH_TIDAK_BERISIKO.get(field)
+        if nilai_berisiko is None or nilai_aman is None:
+            continue
+        if efek["arah"] == "naik_berisiko" and nilai_berisiko < nilai_aman:
+            problems.append(
+                f"{field}: arah 'naik_berisiko' bertentangan dengan preset "
+                f"(berisiko {nilai_berisiko} lebih kecil dari aman {nilai_aman})"
+            )
+        if efek["arah"] == "naik_aman" and nilai_berisiko > nilai_aman:
+            problems.append(
+                f"{field}: arah 'naik_aman' bertentangan dengan preset "
+                f"(berisiko {nilai_berisiko} lebih besar dari aman {nilai_aman})"
             )
 
     # Field yang dilipat ke expander wajib tetap fitur model, dan tetap punya

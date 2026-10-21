@@ -211,6 +211,79 @@ class TestFieldEffect:
             assert set(row) == {"Field", "Arah nilai", "Perubahan risiko", "Penting (%)"}
             assert row["Arah nilai"] in DIRECTION_LABEL.values()
 
+    def test_label_arah_semua_unik(self):
+        """Dua kategori tidak boleh memakai label yang sama.
+
+        Kalau sama, pembaca tabel tidak bisa membedakan keduanya.
+        """
+        assert len(set(DIRECTION_LABEL.values())) == len(DIRECTION_LABEL)
+
+    def test_label_netral_tidak_menyebut_monoton(self):
+        """'netral' keluar dari klasifikasi sebelum monotonitas dicek.
+
+        Field berlabel netral hanya punya batas: efeknya terlalu kecil untuk
+        disebut berarah. Kurvanya belum tentu tidak monoton, jadi labelnya
+        tidak boleh mengklaim itu -- dan 'tidak monoton' sudah jadi kategori
+        tersendiri.
+        """
+        assert "monoton" not in DIRECTION_LABEL["netral"].lower()
+
+
+class TestPanduanVsContohProfil:
+    """Panduan arah nilai tidak boleh bertentangan dengan contoh di aplikasi.
+
+    Regresi dari laporan pengguna: tabel menulis "Jumlah assessment -> Naik =
+    lebih berisiko", sementara dua tombol contoh di aplikasi menunjuk arah yang
+    sebaliknya. Field yang responsnya tidak monoton kini tidak diklaim berarah,
+    dan field yang berarah monoton harus dipakai pada contoh profil dengan
+    urutan yang sesuai.
+    """
+
+    MONOTON = ("naik_berisiko", "naik_aman")
+
+    def test_field_monoton_dipakai_pada_contoh_yang_urut(self):
+        diperiksa = 0
+        for field, efek in FIELD_EFFECT.items():
+            if efek["arah"] not in self.MONOTON:
+                continue
+            diperiksa += 1
+            nilai_berisiko = CONTOH_BERISIKO[field]
+            nilai_aman = CONTOH_TIDAK_BERISIKO[field]
+
+            if efek["arah"] == "naik_berisiko":
+                assert nilai_berisiko >= nilai_aman, (
+                    f"{field}: panduan bilang 'naik = lebih berisiko', tapi "
+                    f"contoh berisiko memakai nilai {nilai_berisiko} yang lebih "
+                    f"rendah dari {nilai_aman} pada contoh aman."
+                )
+            else:
+                assert nilai_berisiko <= nilai_aman, (
+                    f"{field}: panduan bilang 'naik = lebih aman', tapi contoh "
+                    f"berisiko memakai nilai {nilai_berisiko} yang lebih tinggi "
+                    f"dari {nilai_aman} pada contoh aman."
+                )
+
+        assert diperiksa > 0, "tidak ada field berarah monoton untuk diperiksa"
+
+    def test_field_non_monoton_tidak_punya_label_arah_monoton(self):
+        for field, efek in FIELD_EFFECT.items():
+            if efek["arah"] == "netral":
+                continue
+            assert efek["arah"] in DIRECTION_LABEL, field
+
+    def test_jumlah_assessment_tidak_diklaim_naik_berisiko(self):
+        """Bug yang dilaporkan: kurvanya naik-turun, jadi tidak boleh monoton."""
+        assert FIELD_EFFECT["jumlah_assessment"]["arah"] not in self.MONOTON
+
+    def test_kategori_arah_lengkap_dan_tidak_ada_yang_dihapus(self):
+        assert set(DIRECTION_LABEL) == {
+            "naik_aman",
+            "naik_berisiko",
+            "risiko_puncak_tengah",
+            "tidak_monoton",
+            "netral",
+        }
+
 
 class TestRemovedFields:
     """`hari_terakhir_akses` dihapus karena sweep membuktikan efeknya nol."""
