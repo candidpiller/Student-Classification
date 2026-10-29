@@ -5,18 +5,19 @@ Jalankan di Kaggle notebook atau local yang memiliki akses ke data OULAD.
 Cara pakai:
     1. Jalankan notebook training (ebm-ctgan-fixed-cl.ipynb) sampai Cell 30
     2. Jalankan script ini
-    3. Copy output feature_ranges.json ke folder models/
+    3. Script langsung menulis models/feature_ranges.json
 """
 import json
 import os
 import sys
+from pathlib import Path
 
 import kagglehub
 import pandas as pd
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import FEATURE_ORDER, NUMERIC_COLS
+from src.config import ARTIFACT_FEATURE_RANGES, FEATURE_ORDER, NUMERIC_COLS
 
 # Download dataset
 path = kagglehub.dataset_download('anlgrbz/student-demographics-online-education-dataoulad')
@@ -161,8 +162,11 @@ output = {
     "features": feature_ranges,
 }
 
-with open("feature_ranges.json", "w", encoding="utf-8") as f:
-    json.dump(output, f, indent=2)
+output_path = (
+    Path(__file__).resolve().parent.parent / "models" / ARTIFACT_FEATURE_RANGES
+)
+with output_path.open("w", encoding="utf-8") as file:
+    json.dump(output, file, indent=2)
 
-print("feature_ranges.json berhasil dibuat!")
+print(f"{output_path} berhasil dibuat!")
 print(f"Jumlah fitur numerik: {len(feature_ranges)} / {len(NUMERIC_COLS)}")

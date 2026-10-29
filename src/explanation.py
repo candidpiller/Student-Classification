@@ -7,7 +7,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
-from src.prediction import load_model
+from src.artifacts import load_model
 
 logger = logging.getLogger(__name__)
 

@@ -19,8 +19,13 @@ student-classification/
 │   ├── predict.py                # Prediksi individual
 │   └── about.py                  # Tentang model: ringkasan dan batasan
 ├── src/
-│   ├── config.py                 # Konstanta, urutan fitur, metrik
-│   ├── form_config.py            # Default, bounds, label, help, preset
+│   ├── config.py                 # Konstanta, urutan fitur, nama artefak, metrik
+│   ├── artifacts.py              # Path + loader artefak yang di-cache
+│   ├── field_spec.py             # Batas, label, dan help tiap field
+│   ├── field_effect.py           # FIELD_EFFECT hasil pengukuran + API arah nilai
+│   ├── presets.py                # Preset profil contoh
+│   ├── form_config.py            # Facade: gabungan spec/effect/preset + validasi
+│   ├── form_state.py             # Helper murni session state dan input form
 │   ├── preprocessing.py          # Feature engineering
 │   ├── prediction.py             # Model inference
 │   ├── explanation.py            # EBM local explanation
@@ -30,7 +35,8 @@ student-classification/
 ├── assets/                       # 12 gambar dari notebook
 ├── models/                       # Artefak model
 ├── scripts/
-│   └── generate_feature_ranges.py
+│   ├── generate_feature_ranges.py
+│   └── generate_field_effect.py
 ├── tests/
 ├── requirements.txt
 └── README.md
@@ -59,9 +65,9 @@ Letakkan file berikut di folder `models/`:
 
 | File | Isi |
 |---|---|
-| `04_final_model.pkl` | Model EBM terlatih |
+| `04_model_ebm.pkl` | Model EBM terlatih |
 | `03_scaler.pkl` | `StandardScaler` untuk 34 fitur numerik |
-| `label_encoders.pkl` | Label encoder fitur kategorikal |
+| `02_label_encoders.pkl` | Label encoder fitur kategorikal |
 | `module_stats.json` | Pass rate per modul dan presentasi |
 | `feature_ranges.json` | Rentang nilai fitur dari data latih |
 
@@ -69,6 +75,10 @@ Tiga file pertama wajib ada agar prediksi berjalan. Tanpa `module_stats.json`,
 fitur kesulitan modul dan presentasi memakai nilai default global, sehingga
 prediksi tetap jalan tetapi kurang akurat. Tanpa `feature_ranges.json`, validasi
 rentang dilewati.
+
+Nama file artefak didefinisikan sekali di `src/config.py` (`ARTIFACT_MODEL`,
+`ARTIFACT_SCALER`, dan seterusnya). `src/artifacts.py` memakai konstanta itu
+untuk memuat artefak, jadi mengganti nama file cukup dilakukan di satu tempat.
 
 `module_stats.json` dihasilkan dari notebook:
 
@@ -98,7 +108,7 @@ referensi hasil evaluasi di notebook.
 
 Hanya ada dua halaman, tanpa navbar dan tanpa sidebar:
 
-- **Prediksi individual** — form 32 field (demografi, riwayat studi, hasil
+- **Prediksi individual** — form 31 field (demografi, riwayat studi, hasil
   assessment, aktivitas VLE) plus tombol preset dan *local explanation* EBM
   yang menunjukkan kontribusi tiap fitur terhadap prediksi. Dropdown modul dan
   presentasi saling bergantung: hanya kombinasi yang benar-benar ada di OULAD
@@ -130,9 +140,12 @@ tetapi tidak dirender di mana pun.
   tidak memicu rerun, sehingga opsi presentasi tidak bisa ikut berubah saat
   modul diganti. Field-nya ada di `MODULE_FIELDS`, terpisah dari
   `FORM_SECTIONS`.
-- **Definisi field form tinggal di `src/form_config.py`.** Label, batas
-  min/max, help text, dan preset didefinisikan satu kali di sana, lalu dipakai
-  oleh halaman prediksi, halaman tentang model, dan test.
+- **Definisi field form terbagi ke modul kecil.** Batas/label/help ada di
+  `src/field_spec.py`, preset di `src/presets.py`, dan tabel arah nilai di
+  `src/field_effect.py`. `src/form_config.py` adalah facade publik yang
+  menggabungkan ketiganya plus `validate_form_config()`, jadi halaman dan test
+  tetap cukup mengimpor dari satu tempat. Jangan menduplikasi definisi field di
+  halaman.
 - **Nilai preset harus valid terhadap `feature_ranges.json` dan pasangan modul
   presentasi yang nyata.** Ada test yang menjaga kedua invariant ini.
 - **Tampilan diatur lewat `.streamlit/config.toml`, bukan CSS yang di-inject.**
@@ -145,9 +158,14 @@ tetapi tidak dirender di mana pun.
   halaman crash saat render.
 - **Kalimat dan label UI memakai sentence case**, bukan Title Case.
 - **Logika bisnis harus tetap bisa diuji tanpa browser.** Modul di `src/`
-  tidak boleh memanggil `st.*` secara langsung, kecuali `src/prediction.py`
-  yang memakai `@st.cache_resource` untuk memuat artefak. `src/batch.py`,
-  `src/validation.py`, dan `src/form_config.py` tetap murni fungsi biasa.
+  tidak boleh memanggil `st.*` secara langsung, kecuali `src/artifacts.py`
+  yang memakai `@st.cache_resource` / `@st.cache_data` untuk memuat artefak.
+  `src/batch.py`, `src/validation.py`, `src/form_config.py`, dan
+  `src/form_state.py` tetap murni fungsi biasa.
+
+- **Nama artefak hanya boleh muncul di `src/config.py` dan `src/artifacts.py`.**
+  Halaman, test, dan script memakai konstanta `ARTIFACT_*` atau fungsi loader,
+  bukan string path literal.
 
 ## Testing
 
@@ -182,5 +200,6 @@ Aplikasi bisa di-deploy ke **Streamlit Community Cloud**:
    tunjuk `app.py` sebagai entry point.
 3. Pastikan `requirements.txt` ikut ter-commit.
 
-> Periksa batas ukuran repository: file model EBM berukuran kecil, tetapi
-> `assets/` menambah beberapa MB.
+> Periksa batas ukuran repository: `04_model_ebm.pkl` berukuran ±58 MB dan harus
+> ikut ter-commit. Kalau repo jadi terlalu besar, pindahkan artefak itu ke Git
+> LFS; Community Cloud otomatis men-download LFS object saat deploy.

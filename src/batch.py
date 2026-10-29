@@ -6,10 +6,8 @@ tanpa menjalankan aplikasi.
 """
 import pandas as pd
 
-from src.config import THRESHOLD
-from src.form_config import (
-    FIELD_BOUNDS, FIELD_LABELS, FORM_DEFAULTS, REQUIRED_INPUT_FIELDS,
-)
+from src.config import REQUIRED_INPUT_FIELDS, THRESHOLD
+from src.field_spec import FIELD_BOUNDS, FIELD_LABELS, FORM_DEFAULTS
 from src.prediction import predict_students
 from src.validation import validate_input
 

@@ -2,19 +2,22 @@
 import pandas as pd
 import streamlit as st
 
+from src.artifacts import (
+    artefak_hilang, artefak_siap, load_feature_ranges, load_label_encoders,
+    load_module_stats,
+)
 from src.explanation import get_local_explanation
-from src.form_config import (
-    CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FIELD_BOUNDS, FIELDS_TAMBAHAN,
-    FORM_DEFAULTS, FORM_KOSONG, FORM_SECTIONS, MODULE_FIELDS,
-    SELECT_OPTIONS, effect_rows, field_help, field_label, widget_key,
+from src.field_effect import FIELDS_TAMBAHAN, effect_rows, field_help
+from src.field_spec import (
+    FIELD_BOUNDS, FORM_SECTIONS, SELECT_OPTIONS, field_label, widget_key,
 )
-from src.prediction import (
-    artefak_siap, load_feature_ranges, load_label_encoders, load_module_stats,
-    predict_student,
+from src.form_state import (
+    apply_pending_preset, build_raw_input, missing_raw_fields, request_preset,
+    seed_widget_state,
 )
-from src.preprocessing import (
-    build_feature_row, encode_categoricals, presentations_for,
-)
+from src.prediction import predict_student
+from src.preprocessing import build_feature_row, encode_categoricals, presentations_for
+from src.presets import CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FORM_KOSONG
 from src.validation import validate_input
 
 # Placeholder form yang kosong. value=None + placeholder membuat kolom tampil
@@ -32,11 +35,11 @@ with judul_col:
     st.title("Prediksi risiko mahasiswa", anchor=False)
 with preset_risiko_col:
     if st.button("Contoh berisiko", width="stretch", key="preset_berisiko"):
-        st.session_state["pending_preset"] = CONTOH_BERISIKO
+        request_preset(st.session_state, CONTOH_BERISIKO)
         st.rerun()
 with preset_aman_col:
     if st.button("Contoh tidak berisiko", width="stretch", key="preset_aman"):
-        st.session_state["pending_preset"] = CONTOH_TIDAK_BERISIKO
+        request_preset(st.session_state, CONTOH_TIDAK_BERISIKO)
         st.rerun()
 
 st.caption(
@@ -89,13 +92,8 @@ with st.expander("Panduan arah nilai setiap field", icon=":material/help:"):
     )
 
 # Default form hanya perlu di-seed sekali; setelah itu session state yang dipakai.
-for field, default in FORM_DEFAULTS.items():
-    st.session_state.setdefault(widget_key(field), default)
-
-pending = st.session_state.pop("pending_preset", None)
-if pending is not None:
-    for field, value in pending.items():
-        st.session_state[widget_key(field)] = value
+seed_widget_state(st.session_state)
+apply_pending_preset(st.session_state)
 
 feature_ranges = load_feature_ranges()
 module_stats = load_module_stats()
@@ -217,21 +215,15 @@ with st.form("prediction_form"):
     reset_clicked = st.form_submit_button("Reset form", width="stretch")
 
 if reset_clicked:
-    st.session_state["pending_preset"] = FORM_KOSONG
+    request_preset(st.session_state, FORM_KOSONG)
     st.rerun()
 
 if not submitted:
     st.stop()
 
-raw_input = {
-    field: form_values[field]
-    for field in FORM_DEFAULTS
-    if field not in MODULE_FIELDS
-}
-raw_input["code_module"] = code_module
-raw_input["code_presentation"] = code_presentation
+raw_input = build_raw_input(form_values, code_module, code_presentation)
 
-missing_fields = [f for f in FORM_DEFAULTS if f not in raw_input]
+missing_fields = missing_raw_fields(raw_input)
 if missing_fields:
     st.error(f"Field berikut tidak terbaca dari form: {', '.join(missing_fields)}")
     st.stop()
@@ -245,9 +237,9 @@ if not is_valid:
     st.stop()
 
 if not artefak_siap():
+    hilang = ", ".join(f"`{name}`" for name in artefak_hilang())
     st.error(
-        "Artefak model belum ditemukan di folder `models/`. Pastikan file "
-        "`04_final_model.pkl`, `03_scaler.pkl`, dan `label_encoders.pkl` ada."
+        f"Artefak model belum ditemukan di folder `models/`. Pastikan file {hilang} ada."
     )
     st.stop()
 

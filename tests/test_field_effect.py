@@ -39,10 +39,11 @@ FIELD_PANJANG = [
     "jumlah_mahasiswa_presentasi",
 ]
 
-# Kurva risiko `jumlah_assessment` hasil ukur di profil CONTOH_TIDAK_BERISIKO.
-# Dua ujungnya naik (0,147 -> 0,582), jadi versi lama akan menyimpulkan "naik =
-# lebih berisiko" -- padahal kurvanya naik-turun di tengah, dan contoh profil
-# di aplikasi justru menunjukkan nilai kecil yang lebih berisiko.
+# Kurva sintetis yang meniru pola hasil ukur `jumlah_assessment` di profil
+# CONTOH_TIDAK_BERISIKO: dua ujungnya naik (0,147 -> 0,582), tetapi kurvanya
+# berayun di tengah. Versi lama (bandingkan ujung saja) akan menyimpulkan
+# "naik = lebih berisiko" -- padahal contoh profil di aplikasi justru
+# menunjukkan nilai kecil yang lebih berisiko.
 KURVA_JUMLAH_ASSESSMENT = [
     0.147, 0.527, 0.221, 0.050, 0.065, 0.264, 0.278, 0.117, 0.105, 0.167,
     0.478, 0.475, 0.534, 0.522, 0.455, 0.430, 0.281, 0.480, 0.668, 0.645, 0.582,
@@ -105,7 +106,7 @@ class TestFieldEffectMatchesModel:
 
         assert abs(terukur - tersimpan) < TOLERANSI_DAMPAK, (
             f"{field}: rentang tersimpan {tersimpan} tapi hasil ukur ulang "
-            f"{terukur:.3f}. Perbarui FIELD_EFFECT di src/form_config.py."
+            f"{terukur:.3f}. Perbarui FIELD_EFFECT di src/field_effect.py."
         )
 
     @pytest.mark.parametrize("field", FIELD_PANJANG)
@@ -115,7 +116,7 @@ class TestFieldEffectMatchesModel:
 
         assert terukur == tersimpan, (
             f"{field}: arah tersimpan {tersimpan!r} tapi model kini memberi "
-            f"{terukur!r}. Perbarui FIELD_EFFECT di src/form_config.py."
+            f"{terukur!r}. Perbarui FIELD_EFFECT di src/field_effect.py."
         )
 
     def test_field_diabaikan_model_tidak_lagi_ada(self):

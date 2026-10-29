@@ -1,421 +1,76 @@
 """
-Konfigurasi form input — nilai default, batas input, label, dan data contoh.
+API publik konfigurasi form.
 
-Dipisahkan dari app_pages/predict.py supaya definisi field (label, batas,
-default) bisa dipakai ulang dan diuji tanpa menjalankan aplikasi.
+Modul ini adalah fasad tipis di atas tiga modul yang lebih fokus:
+
+- ``src.field_spec``   — default, batas, label, help, dan section form.
+- ``src.field_effect`` — arah dan besaran pengaruh tiap field.
+- ``src.presets``      — contoh profil dan form kosong.
+
+Nama-nama lama tetap di-ekspor dari sini supaya halaman dan test yang sudah ada
+tidak perlu berubah sekaligus. ``validate_form_config()`` menjaga agar ketiga
+modul itu tetap konsisten satu sama lain.
 """
 from src.config import (
-    AMBANG_EFFECT, CATEGORICAL_COLS, CODE_MODULES, CODE_PRESENTATIONS,
-    DEFAULT_CATEGORIES, FEATURE_ORDER, REQUIRED_INPUT_FIELDS,
+    AMBANG_EFFECT,
+    CATEGORICAL_COLS,
+    FEATURE_ORDER,
+    REQUIRED_INPUT_FIELDS,
+)
+from src.field_effect import (
+    DIRECTION_LABEL,
+    FIELD_EFFECT,
+    FIELDS_TAMBAHAN,
+    effect_problems,
+    effect_rows,
+    field_effect,
+    field_help,
+)
+from src.field_spec import (
+    FIELD_BOUNDS,
+    FIELD_HELP,
+    FIELD_LABELS,
+    FORM_DEFAULTS,
+    FORM_SECTIONS,
+    MODULE_FIELDS,
+    NON_MODEL_FORM_FIELDS,
+    NUMERIC_FORM_FIELDS,
+    SELECT_OPTIONS,
+    field_label,
+    widget_key,
+)
+from src.presets import (
+    CONTOH_BERISIKO,
+    CONTOH_TIDAK_BERISIKO,
+    FORM_KOSONG,
+    PRESETS,
 )
 
-# Field yang bergantung satu sama lain dan karena itu dirender DI LUAR st.form.
-# Widget di dalam form tidak memicu rerun, sehingga opsi presentasi tidak bisa
-# ikut berubah saat modul diganti. Dipindah ke luar form supaya opsinya bisa
-# difilter per modul secara langsung.
-MODULE_FIELDS = ["code_module", "code_presentation"]
-
-# Field yang diisi user, dipisah per bagian form.
-# MODULE_FIELDS sengaja tidak ada di sini karena dirender terpisah di atas form.
-FORM_SECTIONS = [
-    ("1. Profil mahasiswa", [
-        "gender", "region", "highest_education", "imd_band", "age_band",
-        "disability",
-    ]),
-    ("2. Riwayat akademik", [
-        "num_of_prev_attempts", "studied_credits",
-        "rata_rata_sks_modul", "jumlah_mahasiswa_presentasi",
-    ]),
-    ("3. Assessment", [
-        "jumlah_assessment", "rata_rata_nilai_assessment",
-        "std_nilai_assessment", "min_nilai_assessment", "max_nilai_assessment",
-        "jumlah_assessment_banked",
-    ]),
-    ("4. Aktivitas pembelajaran (VLE)", [
-        "total_click_events", "rata_rata_click_per_aktivitas", "std_click_events",
-        "hari_pertama_akses", "jumlah_hari_akses",
-        "durasi_pembelajaran_hari", "klik_awal", "klik_tengah", "klik_akhir",
-    ]),
-    ("5. Aktivitas temporal", [
-        "tren_klik", "jarak_akses_terakhir", "konsistensi_keterlibatan",
-        "kemiringan_klik_mingguan",
-    ]),
+__all__ = [
+    "AMBANG_EFFECT",
+    "CONTOH_BERISIKO",
+    "CONTOH_TIDAK_BERISIKO",
+    "DIRECTION_LABEL",
+    "FIELD_BOUNDS",
+    "FIELD_EFFECT",
+    "FIELD_HELP",
+    "FIELD_LABELS",
+    "FIELDS_TAMBAHAN",
+    "FORM_DEFAULTS",
+    "FORM_KOSONG",
+    "FORM_SECTIONS",
+    "MODULE_FIELDS",
+    "NON_MODEL_FORM_FIELDS",
+    "NUMERIC_FORM_FIELDS",
+    "PRESETS",
+    "SELECT_OPTIONS",
+    "effect_rows",
+    "field_effect",
+    "field_help",
+    "field_label",
+    "validate_form_config",
+    "widget_key",
 ]
-
-# Kunci session state tiap widget: "f_" + nama field.
-def widget_key(field: str) -> str:
-    return f"f_{field}"
-
-
-# One source of truth untuk nilai default form.
-FORM_DEFAULTS = {
-    # 1. Profil Mahasiswa
-    "gender": "M",
-    "region": "East Anglian Region",
-    "highest_education": "No Formal quals",
-    "imd_band": "0-10%",
-    "age_band": "0-35",
-    "disability": "N",
-    # 2. Riwayat Akademik
-    "num_of_prev_attempts": 0,
-    "studied_credits": 60,
-    "code_module": "AAA",
-    "code_presentation": "2013J",
-    "rata_rata_sks_modul": 60,
-    "jumlah_mahasiswa_presentasi": 500,
-    # 3. Assessment
-    "jumlah_assessment": 8.0,
-    "rata_rata_nilai_assessment": 75.0,
-    "std_nilai_assessment": 8.0,
-    "min_nilai_assessment": 50.0,
-    "max_nilai_assessment": 90.0,
-    "jumlah_assessment_banked": 0.0,
-    # 4. Aktivitas Pembelajaran (VLE)
-    "total_click_events": 1500.0,
-    "rata_rata_click_per_aktivitas": 5.0,
-    "std_click_events": 10.0,
-    "hari_pertama_akses": 0.0,
-    "jumlah_hari_akses": 90.0,
-    "durasi_pembelajaran_hari": 200.0,
-    "klik_awal": 500.0,
-    "klik_tengah": 500.0,
-    "klik_akhir": 500.0,
-    # 5. Aktivitas Temporal
-    "tren_klik": 1.0,
-    "jarak_akses_terakhir": 20.0,
-    "konsistensi_keterlibatan": 0.3,
-    "kemiringan_klik_mingguan": 0.0,
-}
-
-# Label yang tampil di form (sentence case).
-FIELD_LABELS = {
-    "gender": "Jenis kelamin",
-    "region": "Wilayah",
-    "highest_education": "Pendidikan tertinggi",
-    "imd_band": "IMD band",
-    "age_band": "Kelompok usia",
-    "disability": "Disabilitas",
-    "num_of_prev_attempts": "Jumlah percobaan sebelumnya",
-    "studied_credits": "Studied credits (SKS)",
-    "code_module": "Kode modul",
-    "code_presentation": "Kode presentasi",
-    "rata_rata_sks_modul": "Rata-rata SKS modul",
-    "jumlah_mahasiswa_presentasi": "Jumlah mahasiswa presentasi",
-    "jumlah_assessment": "Jumlah assessment",
-    "rata_rata_nilai_assessment": "Rata-rata nilai assessment",
-    "std_nilai_assessment": "Standar deviasi nilai",
-    "min_nilai_assessment": "Nilai assessment minimum",
-    "max_nilai_assessment": "Nilai assessment maksimum",
-    "jumlah_assessment_banked": "Jumlah assessment banked",
-    "total_click_events": "Total click events",
-    "rata_rata_click_per_aktivitas": "Rata-rata click per aktivitas",
-    "std_click_events": "Standar deviasi click",
-    "hari_pertama_akses": "Hari pertama akses",
-    "jumlah_hari_akses": "Jumlah hari akses",
-    "durasi_pembelajaran_hari": "Durasi pembelajaran (hari)",
-    "klik_awal": "Klik periode awal",
-    "klik_tengah": "Klik periode tengah",
-    "klik_akhir": "Klik periode akhir",
-    "tren_klik": "Tren klik",
-    "jarak_akses_terakhir": "Hari akses terakhir (relatif)",
-    "konsistensi_keterlibatan": "Konsistensi keterlibatan",
-    "kemiringan_klik_mingguan": "Kemiringan klik mingguan",
-}
-
-# Batas (min, max, step) tiap input numerik.
-FIELD_BOUNDS = {
-    "num_of_prev_attempts": (0, 6, 1),
-    "studied_credits": (30, 655, 10),
-    "rata_rata_sks_modul": (35, 91, 1),
-    "jumlah_mahasiswa_presentasi": (300, 2500, 10),
-    "jumlah_assessment": (0.0, 28.0, 1.0),
-    "rata_rata_nilai_assessment": (0.0, 100.0, 0.5),
-    "std_nilai_assessment": (0.0, 70.0, 0.5),
-    "min_nilai_assessment": (0.0, 100.0, 1.0),
-    "max_nilai_assessment": (0.0, 100.0, 1.0),
-    "jumlah_assessment_banked": (0.0, 12.0, 1.0),
-    "total_click_events": (0.0, 28615.0, 10.0),
-    "rata_rata_click_per_aktivitas": (0.0, 20.0, 0.5),
-    "std_click_events": (0.0, 310.0, 0.5),
-    "hari_pertama_akses": (-25.0, 234.0, 1.0),
-    "jumlah_hari_akses": (0.0, 286.0, 1.0),
-    "durasi_pembelajaran_hari": (0.0, 294.0, 1.0),
-    "klik_awal": (0.0, 12736.0, 10.0),
-    "klik_tengah": (0.0, 11020.0, 10.0),
-    "klik_akhir": (0.0, 12650.0, 10.0),
-    "tren_klik": (0.0, 209.0, 0.1),
-    "jarak_akses_terakhir": (-25.0, 269.0, 1.0),
-    "konsistensi_keterlibatan": (0.0, 1.0, 0.01),
-    "kemiringan_klik_mingguan": (-141.0, 138.0, 0.5),
-}
-
-FIELD_HELP = {
-    "gender": "Kode gender mahasiswa pada data OULAD.",
-    "region": "Wilayah lokasi mahasiswa.",
-    "highest_education": "Kualifikasi pendidikan tertinggi sebelumnya.",
-    "imd_band": "Peringkat deprivation index lokasi, dari 0-10% sampai 90-100%.",
-    "age_band": "Kelompok usia mahasiswa.",
-    "disability": "Apakah mahasiswa tercatat memiliki disabilitas.",
-    "code_module": "Kode modul yang diambil. Menentukan skor kesulitan modul.",
-    "code_presentation": "Kode presentasi modul. Menentukan skor kesulitan presentasi.",
-    "num_of_prev_attempts": "Jumlah percobaan mahasiswa pada modul sebelumnya.",
-    "studied_credits": "Total SKS yang diambil mahasiswa.",
-    "rata_rata_sks_modul": "Rata-rata SKS pada modul yang diambil.",
-    "jumlah_mahasiswa_presentasi": "Jumlah mahasiswa pada kombinasi modul dan presentasi ini.",
-    "jumlah_assessment": "Jumlah assessment yang dikerjakan mahasiswa.",
-    "min_nilai_assessment": "Nilai assessment terendah.",
-    "rata_rata_nilai_assessment": "Rata-rata nilai seluruh assessment.",
-    "max_nilai_assessment": "Nilai assessment tertinggi.",
-    "std_nilai_assessment": "Variabilitas nilai assessment.",
-    "jumlah_assessment_banked": "Jumlah assessment yang memakai nilai banked.",
-    "total_click_events": "Jumlah seluruh aktivitas klik mahasiswa pada VLE.",
-    "hari_pertama_akses": "Hari pertama mahasiswa mengakses VLE (relatif).",
-    "klik_awal": "Total klik pada sepertiga awal periode aktivitas.",
-    "rata_rata_click_per_aktivitas": "Rata-rata jumlah klik per aktivitas VLE.",
-    "klik_tengah": "Total klik pada sepertiga tengah periode aktivitas.",
-    "std_click_events": "Variabilitas jumlah klik harian.",
-    "jumlah_hari_akses": "Jumlah hari berbeda mahasiswa mengakses VLE.",
-    "klik_akhir": "Total klik pada sepertiga akhir periode aktivitas.",
-    "durasi_pembelajaran_hari": "Durasi antara akses pertama dan akses terakhir.",
-    "jarak_akses_terakhir": (
-        "Hari relatif akses terakhir ke VLE, dihitung dari mulai modul. "
-        "Nilai negatif berarti mahasiswa berhenti sebelum modul dimulai; nilai "
-        "tinggi berarti ia masih aktif sampai modul mendekati selesai. "
-        "Fitur paling berpengaruh pada model."
-    ),
-    "konsistensi_keterlibatan": "Ukuran konsistensi aktivitas harian mahasiswa.",
-    "tren_klik": "Rasio aktivitas akhir terhadap aktivitas awal.",
-    "kemiringan_klik_mingguan": "Arah dan perubahan aktivitas dari minggu ke minggu.",
-}
-
-# ---------------------------------------------------------------------------
-# Arah pengaruh tiap field terhadap risiko.
-#
-# Angka di bawah diukur langsung dari model EBM yang sudah dilatih, bukan
-# berdasarkan asumsi domain. Metodenya: satu field dinaikkan dari batas bawah
-# ke batas atas dalam 21 titik sama jarak sambil field lain ditahan pada
-# profil CONTOH_TIDAK_BERISIKO (risiko 0.1386, jadi tidak jenuh di batas),
-# lalu perubahan probabilitas risiko diamati.
-#
-# Arah ditentukan dari SELURUH kurva risiko (src.prediction.classify_direction),
-# bukan dari dua ujungnya saja. Versi lama hanya membandingkan nilai pertama
-# dan terakhir, sehingga kurva yang naik-turun di tengah tetap diklaim sebagai
-# "Naik = lebih berisiko" atau "Naik = lebih aman" -- padahal pada contoh
-# "jumlah assessment" di aplikasi, nilai 2 (kecil) lebih berisiko daripada
-# nilai 12 (besar) pada profil yang sama. Karena itu "jumlah assessment"
-# sekarang berlabel "tidak_monoton": model memang tidak memberi aturan
-# monoton padanya.
-#
-#   arah     : "naik_aman"          -> nilai lebih tinggi = risiko lebih rendah
-#               "naik_berisiko"      -> nilai lebih tinggi = risiko lebih tinggi
-#               "risiko_puncak_tengah" -> risiko tertinggi di tengah rentang
-#               "tidak_monoton"     -> responsnya naik-turun, tidak ada aturan
-#                                        monoton yang bisa diklaim
-#               "netral"            -> efek di bawah AMBANG_EFFECT, terlalu kecil
-#                                        untuk disebut baik/buruk
-#   dampak   : RENTANG probabilitas risiko, yaitu risiko tertinggi dikurangi
-#              terendah di sepanjang rentang nilai field (21 titik sama jarak).
-#              Dipakai range, bukan selisih kedua ujung, karena field non-monoton
-#              punya selisih ujung kecil padahal risikonya bergerak jauh di
-#              tengah rentang. Hitung ulang lewat
-#              src.prediction.measure_field_effect agar definisinya tidak
-#              menyimpang dari test.
-#   penting  : persentase term importance EBM, dibagi rata ke tiap fitur yang
-#              muncul pada term (term bisa berupa interaksi dua fitur)
-#
-# PENTING: hubungan ini tidak kausal dan tidak independen. Mengubah satu field
-# ikut menggeser fitur turunan hasil hitung_fitur_turunan, jadi efek antar
-# field saling tumpang tindih. Arah diukur sebagai efek MARGINAL: satu field
-# diubah, field lain ditahan. Karena itu arahnya tidak boleh dibaca dari
-# perbandingan dua contoh profil -- di situ ada ~30 field yang sekaligus
-# berbeda.
-#
-# Satu-satunya hal yang BOLEH disimpulkan dari dua contoh profil: untuk field
-# yang berarah monoton, nilai pada "Contoh berisiko" harus berada di sisi yang
-# lebih berisiko dibanding "Contoh tidak berisiko". Aturan itu dijaga test
-# (tests/test_form_config.py) supaya panduan dan contoh di aplikasi tidak
-# pernah bertentangan.
-#
-# ---------------------------------------------------------------------------
-# Untuk memperbarui angka ini, jalankan ulang sweep dengan model terbaru:
-#   python scripts/generate_field_effect.py
-# ---------------------------------------------------------------------------
-
-FIELD_EFFECT: dict[str, dict] = {
-    "jarak_akses_terakhir": {"arah": "naik_aman", "dampak": 0.885, "penting": 17.0},
-    "jumlah_assessment": {"arah": "tidak_monoton", "dampak": 0.618, "penting": 12.3},
-    "rata_rata_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.795, "penting": 5.1},
-    "jumlah_mahasiswa_presentasi": {"arah": "risiko_puncak_tengah", "dampak": 0.412, "penting": 4.8},
-    "rata_rata_sks_modul": {"arah": "risiko_puncak_tengah", "dampak": 0.146, "penting": 3.8},
-    "durasi_pembelajaran_hari": {"arah": "tidak_monoton", "dampak": 0.58, "penting": 3.6},
-    "jumlah_hari_akses": {"arah": "tidak_monoton", "dampak": 0.128, "penting": 2.8},
-    "klik_tengah": {"arah": "tidak_monoton", "dampak": 0.465, "penting": 2.2},
-    "klik_akhir": {"arah": "tidak_monoton", "dampak": 0.185, "penting": 2.2},
-    "klik_awal": {"arah": "tidak_monoton", "dampak": 0.1, "penting": 2.1},
-    "max_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.152, "penting": 1.9},
-    "min_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.125, "penting": 1.8},
-    "total_click_events": {"arah": "tidak_monoton", "dampak": 0.125, "penting": 1.5},
-    "std_click_events": {"arah": "netral", "dampak": 0.056, "penting": 1.5},
-    "hari_pertama_akses": {"arah": "tidak_monoton", "dampak": 0.344, "penting": 1.4},
-    "kemiringan_klik_mingguan": {"arah": "naik_aman", "dampak": 0.527, "penting": 1.3},
-    "jumlah_assessment_banked": {"arah": "naik_berisiko", "dampak": 0.663, "penting": 1.2},
-    "rata_rata_click_per_aktivitas": {"arah": "risiko_puncak_tengah", "dampak": 0.245, "penting": 1.2},
-    "studied_credits": {"arah": "tidak_monoton", "dampak": 0.458, "penting": 1.1},
-    "konsistensi_keterlibatan": {"arah": "netral", "dampak": 0.075, "penting": 1.0},
-    "std_nilai_assessment": {"arah": "risiko_puncak_tengah", "dampak": 0.14, "penting": 0.8},
-    "tren_klik": {"arah": "naik_aman", "dampak": 0.121, "penting": 0.7},
-    "num_of_prev_attempts": {"arah": "tidak_monoton", "dampak": 0.128, "penting": 0.1},
-}
-
-DIRECTION_LABEL = {
-    "naik_aman": "Naik = lebih aman",
-    "naik_berisiko": "Naik = lebih berisiko",
-    "risiko_puncak_tengah": "Puncak risiko di tengah rentang",
-    "tidak_monoton": "Tidak monoton: risiko naik-turun",
-    # Jangan menulis "tidak memengaruhi" di sini. Semua field berlabel netral
-    # tetap fitur model yang dilatih memakainya; yang kecil hanya rentang
-    # risikonya. Klaim "tidak memengaruhi" pernah dipakai di sini dan terbukti
-    # menyesatkan: std_click_events berlabel netral ternyata lebih penting
-    # (1,5%) dari tren_klik (0,7%) yang berlabel "naik = lebih aman".
-    #
-    # Jangan juga menulis "tidak monoton" di sini. Field berlabel netral
-    # keluaran lebih awal, sebelum monotonitas sempat diperiksa, jadi kurvanya
-    # bisa saja monoton -- hanya terlalu kecil efeknya untuk disebut berarah.
-    "netral": "Pengaruh kecil: arah tidak berarti, tetap dipakai model",
-}
-
-# Field dengan pengaruh kecil. Semuanya fitur model, jadi TIDAK
-# BOLEH dihapus dari form -- menghapusnya membuat predict_student gagal dengan
-# KeyError karena hitung_fitur_turunan dan matriks fitur masih membutuhkannya.
-# Yang dilakukan hanya memindahkannya ke expander, supaya form utama tidak
-# dipenuhi field yang pengaruhnya kecil.
-FIELDS_TAMBAHAN = sorted(
-    (f for f, efek in FIELD_EFFECT.items() if efek["arah"] == "netral"),
-    key=lambda f: -FIELD_EFFECT[f]["penting"],
-)
-
-
-def field_effect(field: str) -> dict | None:
-    """Efek terukur sebuah field, atau None bila field tidak punya efek terukur."""
-    return FIELD_EFFECT.get(field)
-
-
-def field_help(field: str) -> str | None:
-    """Teks help widget: deskripsi field digabung dengan arah pengaruhnya.
-
-    Dipisah dari FIELD_HELP supaya deskripsi tetap bisa dipakai apa adanya
-    (mis. di halaman about) tanpa ikut membawa anotasi arah nilai.
-    """
-    base = FIELD_HELP.get(field)
-    efek = field_effect(field)
-    if efek is None:
-        return base
-
-    arah = DIRECTION_LABEL[efek["arah"]]
-    return f"{base} {arah}." if base else f"{arah}."
-
-
-def effect_rows() -> list[dict]:
-    """Baris tabel referensi arah nilai, diurut dari yang paling berpengaruh."""
-    rows = []
-    for field, efek in FIELD_EFFECT.items():
-        rows.append({
-            "Field": field_label(field),
-            "Arah nilai": DIRECTION_LABEL[efek["arah"]],
-            "Perubahan risiko": round(efek["dampak"], 3),
-            "Penting (%)": round(efek["penting"], 1),
-        })
-    return sorted(rows, key=lambda r: -r["Penting (%)"])
-
-# Opsi selectbox per field kategorikal.
-SELECT_OPTIONS = {
-    "gender": DEFAULT_CATEGORIES["gender"],
-    "region": DEFAULT_CATEGORIES["region"],
-    "highest_education": DEFAULT_CATEGORIES["highest_education"],
-    "imd_band": DEFAULT_CATEGORIES["imd_band"],
-    "age_band": DEFAULT_CATEGORIES["age_band"],
-    "disability": DEFAULT_CATEGORIES["disability"],
-    "code_module": CODE_MODULES,
-    "code_presentation": CODE_PRESENTATIONS,
-}
-
-NUMERIC_FORM_FIELDS = [f for f in FORM_DEFAULTS if f not in SELECT_OPTIONS]
-
-# Field yang dikumpulkan di form tapi tidak jadi fitur model. Dahulu berisi
-# `hari_terakhir_akses`, yang sudah dihapus dari form karena sweep nilai
-# membuktikan perubahannya tidak memengaruhi risiko sama sekali.
-NON_MODEL_FORM_FIELDS: list[str] = []
-
-# Dua contoh profil di bawah harus sejalan dengan panduan arah nilai:
-#
-#   - Untuk field yang berarah monoton ("naik_berisiko" / "naik_aman"), nilai
-#     pada contoh berisiko harus berada di sisi yang lebih berisiko dibanding
-#     contoh tidak berisiko. Itulah sebabnya `jumlah_assessment_banked` bernilai
-#     2 pada contoh berisiko: hasil ukur model menunjukkan makin banyak
-#     assessment yang memakai nilai banked, makin tinggi risikonya.
-#   - Field non-monoton tidak punya aturan arah, jadi kedua contoh boleh
-#     berbeda tanpa perlu sesuai dengan suatu arah.
-#
-# Aturan pertama dijaga test di tests/test_form_config.py, supaya panduan dan
-# contoh di aplikasi tidak pernah bertentangan.
-#
-# CONTOH_TIDAK_BERISIKO sekaligus jadi baseline pengukuran FIELD_EFFECT:
-# risikonya 0.1386, cukup jauh dari batas jenuh, sehingga efek tiap field
-# masih terlihat. Mengubah baseline itu berarti semua angka FIELD_EFFECT
-# harus diukur ulang.
-CONTOH_BERISIKO = {
-    "gender": "M", "region": "London Region", "highest_education": "Lower Than A Level",
-    "imd_band": "20-30%", "age_band": "0-35", "disability": "Y",
-    "num_of_prev_attempts": 2, "studied_credits": 120, "code_module": "CCC",
-    "code_presentation": "2014B", "rata_rata_sks_modul": 60, "jumlah_mahasiswa_presentasi": 380,
-    "jumlah_assessment": 2.0, "rata_rata_nilai_assessment": 45.0, "std_nilai_assessment": 12.0,
-    "min_nilai_assessment": 20.0, "max_nilai_assessment": 65.0, "jumlah_assessment_banked": 2.0,
-    "total_click_events": 250.0, "rata_rata_click_per_aktivitas": 2.2, "std_click_events": 2.0,
-    "hari_pertama_akses": 25.0, "jumlah_hari_akses": 15.0,
-    "durasi_pembelajaran_hari": 60.0, "klik_awal": 70.0, "klik_tengah": 60.0, "klik_akhir": 30.0,
-    "tren_klik": 0.42, "jarak_akses_terakhir": 85.0, "konsistensi_keterlibatan": 0.18,
-    "kemiringan_klik_mingguan": -3.5,
-}
-
-CONTOH_TIDAK_BERISIKO = {
-    "gender": "F", "region": "Scotland", "highest_education": "HE Qualification",
-    "imd_band": "60-70%", "age_band": "35-55", "disability": "N",
-    "num_of_prev_attempts": 0, "studied_credits": 60, "code_module": "AAA",
-    "code_presentation": "2013J", "rata_rata_sks_modul": 60, "jumlah_mahasiswa_presentasi": 500,
-    "jumlah_assessment": 12.0, "rata_rata_nilai_assessment": 90.0, "std_nilai_assessment": 7.0,
-    "min_nilai_assessment": 78.0, "max_nilai_assessment": 100.0, "jumlah_assessment_banked": 1.0,
-    "total_click_events": 3000.0, "rata_rata_click_per_aktivitas": 4.0, "std_click_events": 6.0,
-    "hari_pertama_akses": 0.0, "jumlah_hari_akses": 130.0,
-    "durasi_pembelajaran_hari": 258.0, "klik_awal": 800.0, "klik_tengah": 900.0, "klik_akhir": 1200.0,
-    "tren_klik": 1.5, "jarak_akses_terakhir": 258.0, "konsistensi_keterlibatan": 0.05,
-    "kemiringan_klik_mingguan": 0.5,
-}
-
-# Reset form mengosongkan semua kolom, bukan mengembalikannya ke default, supaya
-# user bisa mengisi dari nol. Nilai None membuat st.number_input tampil kosong
-# dan st.selectbox tanpa pilihan.
-# Sengaja TIDAK dijadikan anggota PRESETS: PRESETS berisi data lengkap yang
-# harus lolos validasi, sedangkan form kosong memang belum boleh dipprediksi.
-FORM_KOSONG: dict = {field: None for field in FORM_DEFAULTS}
-
-PRESETS = {
-    "Contoh berisiko": CONTOH_BERISIKO,
-    "Contoh tidak berisiko": CONTOH_TIDAK_BERISIKO,
-}
-
-
-def field_label(field: str) -> str:
-    """Label form, dilengkapi rentang untuk input numerik."""
-    base = FIELD_LABELS.get(field, field)
-    bounds = FIELD_BOUNDS.get(field)
-    if bounds is None:
-        return base
-    lo, hi = bounds[0], bounds[1]
-
-    def _fmt(value):
-        return f"{value:g}"
-
-    return f"{base} ({_fmt(lo)}\u2013{_fmt(hi)})"
 
 
 def validate_form_config() -> list[str]:
@@ -471,29 +126,7 @@ def validate_form_config() -> list[str]:
             f"REQUIRED_INPUT_FIELDS: {expected_non_model} != {sorted(NON_MODEL_FORM_FIELDS)}"
         )
 
-    # FIELD_EFFECT harus menutup tepat semua field numerik, dan label "netral"
-    # harus benar-benar dipakai hanya untuk efek di bawah ambang.
-    missing_effect = sorted(set(FIELD_BOUNDS) - set(FIELD_EFFECT))
-    if missing_effect:
-        problems.append(f"field numerik tanpa FIELD_EFFECT: {missing_effect}")
-
-    extra_effect = sorted(set(FIELD_EFFECT) - set(FIELD_BOUNDS))
-    if extra_effect:
-        problems.append(f"FIELD_EFFECT punya field non-numerik: {extra_effect}")
-
-    for field, efek in FIELD_EFFECT.items():
-        if efek["arah"] not in DIRECTION_LABEL:
-            problems.append(f"{field}: arah '{efek['arah']}' tidak dikenal")
-        if efek["arah"] == "netral" and efek["dampak"] >= AMBANG_EFFECT:
-            problems.append(
-                f"{field}: ditandai 'netral' tapi dampak {efek['dampak']} "
-                f">= AMBANG_EFFECT {AMBANG_EFFECT}"
-            )
-        if efek["arah"] != "netral" and efek["dampak"] < AMBANG_EFFECT:
-            problems.append(
-                f"{field}: dampak {efek['dampak']} < AMBANG_EFFECT "
-                f"{AMBANG_EFFECT}, seharusnya ditandai 'netral'"
-            )
+    problems.extend(effect_problems())
 
     # Panduan arah nilai dan contoh profil harus sejalan. Untuk field yang
     # berarah monoton, nilai pada preset berisiko harus berada di sisi yang

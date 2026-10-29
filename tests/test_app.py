@@ -541,7 +541,9 @@ def test_about_page_lists_model_artifacts():
         for value in frame.value.to_numpy().ravel()
     ]
 
-    assert any("04_final_model.pkl" in cell for cell in cells)
+    from src.config import ARTIFACT_MODEL
+
+    assert any(ARTIFACT_MODEL in cell for cell in cells)
 
 
 def _submitted_page(tmp_path, session_patch: dict | None = None):

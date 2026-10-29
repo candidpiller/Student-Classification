@@ -1,73 +1,62 @@
 ﻿"""
-Modul prediksi — load artifacts, jalankan model EBM, hasilkan prediksi.
-"""
-import json
-import os
+Modul prediksi — bangun matriks fitur, jalankan model EBM, klasifikasikan hasil.
 
-import joblib
+Loader artefak tinggal di ``src.artifacts``. Modul ini fokus pada inference dan
+pengukuran arah pengaruh field, dan tetap mengekspor loader tersebut untuk
+kompatibilitas dengan kode/test lama.
+"""
 import numpy as np
 import pandas as pd
-import streamlit as st
 
+from src.artifacts import (
+    MODELS_DIR,
+    artefak_hilang,
+    artefak_siap,
+    artifact_path,
+    load_feature_ranges,
+    load_label_encoders,
+    load_model,
+    load_module_stats,
+    load_scaler,
+)
 from src.config import (
-    AMBANG_EFFECT, FEATURE_ORDER, LABEL_MAP, NUMERIC_COLS, THRESHOLD,
+    AMBANG_EFFECT,
+    FEATURE_ORDER,
+    LABEL_MAP,
+    NUMERIC_COLS,
+    THRESHOLD,
 )
 from src.preprocessing import build_feature_row, encode_categoricals
 
-MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
-
-
-def _path(name: str) -> str:
-    return os.path.join(MODELS_DIR, name)
-
-
-@st.cache_resource(show_spinner=False)
-def load_model():
-    return joblib.load(_path("04_final_model.pkl"))
-
-
-@st.cache_resource(show_spinner=False)
-def load_scaler():
-    return joblib.load(_path("03_scaler.pkl"))
-
-
-@st.cache_resource(show_spinner=False)
-def load_label_encoders():
-    return joblib.load(_path("label_encoders.pkl"))
-
-
-@st.cache_data(show_spinner=False)
-def load_module_stats():
-    p = _path("module_stats.json")
-    if not os.path.exists(p):
-        return None
-    with open(p, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-@st.cache_data(show_spinner=False)
-def load_feature_ranges():
-    p = _path("feature_ranges.json")
-    if not os.path.exists(p):
-        return None
-    with open(p, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def artefak_siap() -> bool:
-    return all(
-        os.path.exists(_path(f))
-        for f in ["04_final_model.pkl", "03_scaler.pkl", "label_encoders.pkl"]
-    )
+__all__ = [
+    "MODELS_DIR",
+    "SWEEP_POINTS",
+    "SMOOTH_WINDOW",
+    "RASIO_MONOTON",
+    "TOL_PUNCAK",
+    "TOL_POSISI_PUNCAK",
+    "artefak_hilang",
+    "artefak_siap",
+    "artifact_path",
+    "classify_direction",
+    "load_feature_ranges",
+    "load_label_encoders",
+    "load_model",
+    "load_module_stats",
+    "load_scaler",
+    "measure_field_effect",
+    "predict_student",
+    "predict_students",
+]
 
 
 def _encode_frame(rows: list[dict], module_stats: dict | None) -> pd.DataFrame:
     """Bangun matriks fitur ter-scaling untuk satu atau lebih baris input."""
-    model_encoders = load_label_encoders()
+    encoders = load_label_encoders()
     scaler = load_scaler()
 
     rows_lengkap = [build_feature_row(row, module_stats) for row in rows]
-    encoded = [encode_categoricals(row, model_encoders) for row in rows_lengkap]
+    encoded = [encode_categoricals(row, encoders) for row in rows_lengkap]
 
     X_encoded = pd.DataFrame(encoded)[FEATURE_ORDER]
     X_scaled = X_encoded.copy()
@@ -75,26 +64,27 @@ def _encode_frame(rows: list[dict], module_stats: dict | None) -> pd.DataFrame:
     return X_scaled[FEATURE_ORDER]
 
 
+def _classify(probability_risk: float) -> dict:
+    """Terapkan threshold dan kembalikan hasil klasifikasi tanpa matriks fitur."""
+    prediction = 0 if probability_risk >= THRESHOLD else 1
+    return {
+        "prediction": prediction,
+        "label": LABEL_MAP[prediction],
+        "probability_risk": probability_risk,
+        "probability_not_risk": 1.0 - probability_risk,
+        "threshold": THRESHOLD,
+    }
+
+
 def predict_student(raw_input: dict) -> dict:
     """Prediksi risiko mahasiswa dari input mentah. Mengembalikan dict hasil."""
     model = load_model()
     X_scaled = _encode_frame([raw_input], load_module_stats())
+    probability_risk = float(model.predict_proba(X_scaled)[0][0])
 
-    proba = model.predict_proba(X_scaled)[0]
-    probability_risk = float(proba[0])
-    probability_not_risk = float(proba[1])
-
-    prediction = 0 if probability_risk >= THRESHOLD else 1
-    label = LABEL_MAP[prediction]
-
-    return {
-        "prediction": prediction,
-        "label": label,
-        "probability_risk": probability_risk,
-        "probability_not_risk": probability_not_risk,
-        "threshold": THRESHOLD,
-        "X_scaled": X_scaled,
-    }
+    result = _classify(probability_risk)
+    result["X_scaled"] = X_scaled
+    return result
 
 
 def predict_students(raw_inputs: list[dict]) -> list[dict]:
@@ -104,21 +94,9 @@ def predict_students(raw_inputs: list[dict]) -> list[dict]:
 
     model = load_model()
     X_scaled = _encode_frame(raw_inputs, load_module_stats())
-    proba = model.predict_proba(X_scaled)
+    probabilities = model.predict_proba(X_scaled)
 
-    results = []
-    for row_proba in proba:
-        probability_risk = float(row_proba[0])
-        probability_not_risk = float(row_proba[1])
-        prediction = 0 if probability_risk >= THRESHOLD else 1
-        results.append({
-            "prediction": prediction,
-            "label": LABEL_MAP[prediction],
-            "probability_risk": probability_risk,
-            "probability_not_risk": probability_not_risk,
-            "threshold": THRESHOLD,
-        })
-    return results
+    return [_classify(float(row[0])) for row in probabilities]
 
 
 # Jumlah titik yang dipakai saat mengukur arah pengaruh sebuah field. Nilai ini
@@ -224,23 +202,23 @@ def measure_field_effect(
 ) -> dict:
     """Ukur arah dan besaran pengaruh satu field terhadap risiko.
 
-    `field` dijankan dari `low` ke `high` dalam `points` langkah sama jarak,
-    sementara field lain ditahan pada `baseline`. Hasilnya:
+    ``field`` dijalankan dari ``low`` ke ``high`` dalam ``points`` langkah sama
+    jarak, sementara field lain ditahan pada ``baseline``. Hasilnya:
 
-        risiko_min / risiko_maks : nilai risiko terkecil dan terbesar di sepang
-        rentang                   : risiko_maks - risiko_min, yaitu seberapa jauh
-                                   risiko bergerak karena field ini saja
+        risiko_min / risiko_maks : nilai risiko terkecil dan terbesar
+        rentang                   : risiko_maks - risiko_min, yaitu seberapa
+                                    jauh risiko bergerak karena field ini saja
         arah                      : "naik_berisiko" / "naik_aman" /
-                                   "risiko_puncak_tengah" / "tidak_monoton" /
-                                   "netral"
+                                    "risiko_puncak_tengah" / "tidak_monoton" /
+                                    "netral"
 
-    `rentang` sengaja dipakai, bukan selisih antara nilai `low` dan `high`.
+    ``rentang`` sengaja dipakai, bukan selisih antara nilai ``low`` dan ``high``.
     Untuk field non-monoton keduanya jauh berbeda: field yang paling aman di
     tengah rentang punya selisih ujung yang kecil padahal risikonya bergerak
     jauh sekali di tengah-tengah.
 
-    Arah ditentukan dari SELURUH kurva (lihat `classify_direction`), bukan dari
-    dua ujungnya saja, dan field yang risikonya tidak bergerak sama sekali
+    Arah ditentukan dari SELURUH kurva (lihat ``classify_direction``), bukan
+    dari dua ujungnya saja, dan field yang risikonya tidak bergerak sama sekali
     ("netral") dilaporkan apa adanya.
     """
     model = load_model()

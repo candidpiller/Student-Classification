@@ -1,7 +1,23 @@
 ﻿'''
 Konstanta proyek Student Risk Prediction.
-Urutan fitur, kategori, threshold, dan konstanta lainnya.
+Urutan fitur, kategori, threshold, nama artefak, dan konstanta lainnya.
 '''
+
+# Nama file artefak model. Semua kode harus memakai konstanta ini, bukan
+# menulis nama file sendiri-sendiri, supaya penamaan artefak cukup diubah di
+# satu tempat.
+ARTIFACT_MODEL = "04_model_ebm.pkl"
+ARTIFACT_SCALER = "03_scaler.pkl"
+ARTIFACT_LABEL_ENCODERS = "02_label_encoders.pkl"
+ARTIFACT_MODULE_STATS = "module_stats.json"
+ARTIFACT_FEATURE_RANGES = "feature_ranges.json"
+
+# Artefak yang wajib ada agar inference bisa berjalan.
+REQUIRED_ARTIFACT_FILES = (
+    ARTIFACT_MODEL,
+    ARTIFACT_SCALER,
+    ARTIFACT_LABEL_ENCODERS,
+)
 
 # 40 fitur akhir — urutan harus identik dengan model.feature_names_in_
 FEATURE_ORDER = [

@@ -7,7 +7,7 @@ from src.config import (
     CATEGORICAL_COLS, CODE_MODULES, CODE_PRESENTATIONS, DEFAULT_CATEGORIES,
     REQUIRED_INPUT_FIELDS,
 )
-from src.form_config import field_label
+from src.field_spec import field_label
 from src.preprocessing import pair_is_valid, presentations_for
 
 

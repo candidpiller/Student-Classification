@@ -1,9 +1,14 @@
-﻿"""Tests untuk modul prediction."""
+﻿"""Tests untuk modul prediction dan akses artefak model."""
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.config import THRESHOLD
+from src.artifacts import artefak_hilang, artefak_siap, artifact_path
+from src.config import (
+    ARTIFACT_MODULE_STATS,
+    REQUIRED_ARTIFACT_FILES,
+    THRESHOLD,
+)
 
 
 def test_threshold_value():
@@ -35,8 +40,11 @@ def test_probability_range():
 
 
 def test_artifacts_exist():
-    models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
-    assert os.path.exists(os.path.join(models_dir, "04_final_model.pkl"))
-    assert os.path.exists(os.path.join(models_dir, "03_scaler.pkl"))
-    assert os.path.exists(os.path.join(models_dir, "label_encoders.pkl"))
-    assert os.path.exists(os.path.join(models_dir, "module_stats.json"))
+    for name in REQUIRED_ARTIFACT_FILES:
+        assert artifact_path(name).is_file(), name
+    assert artifact_path(ARTIFACT_MODULE_STATS).is_file()
+
+
+def test_artifact_readiness_matches_inventory():
+    assert artefak_siap()
+    assert artefak_hilang() == []

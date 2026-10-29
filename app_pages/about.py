@@ -1,19 +1,14 @@
 """Halaman tentang model — ringkasan proyek, model, dan batasan penggunaan."""
-import os
-
-import pandas as pd
 import streamlit as st
 
+from src.artifacts import MODELS_DIR, artifact_inventory
 from src.assets import FIGURES, asset_path
 from src.config import (
     CODE_MODULES, CODE_PRESENTATIONS, DERIVED_FEATURES, FEATURES_DIFFICULTY,
     GLOBAL_PASS_RATE, MODEL_INFO, REQUIRED_INPUT_FIELDS, THRESHOLD,
 )
-from src.form_config import (
-    CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO, FIELD_BOUNDS,
-    NON_MODEL_FORM_FIELDS,
-)
-from src.prediction import MODELS_DIR
+from src.field_spec import FIELD_BOUNDS, NON_MODEL_FORM_FIELDS
+from src.presets import CONTOH_BERISIKO, CONTOH_TIDAK_BERISIKO
 
 # Navbar disembunyikan, jadi setiap halaman punya judul sendiri.
 # anchor=False menyembunyikan ikon tautan yang muncul saat hover di kanan heading.
@@ -136,17 +131,11 @@ st.image(
 )
 
 st.subheader("Artefak model", anchor=False)
-if os.path.isdir(MODELS_DIR):
-    artifact_rows = [
-        {
-            "File": f"`models/{name}`",
-            "Ukuran": f"{os.path.getsize(os.path.join(MODELS_DIR, name)) / 1024:,.1f} KB",
-        }
-        for name in sorted(os.listdir(MODELS_DIR))
-    ]
+if not MODELS_DIR.is_dir():
+    st.warning("Folder `models/` tidak ditemukan.")
+else:
+    artifact_rows = artifact_inventory()
     if artifact_rows:
-        st.dataframe(pd.DataFrame(artifact_rows), hide_index=True, width="stretch")
+        st.dataframe(artifact_rows, hide_index=True, width="stretch")
     else:
         st.warning("Folder `models/` kosong.")
-else:
-    st.warning("Folder `models/` tidak ditemukan.")

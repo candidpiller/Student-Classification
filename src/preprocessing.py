@@ -3,7 +3,6 @@ Modul preprocessing — feature engineering, encoding, scaling.
 Mereplikasi pipeline persis dari notebook pelatihan.
 """
 import numpy as np
-import pandas as pd
 
 from src.config import (
     CATEGORICAL_COLS, CODE_MODULES, CODE_PRESENTATIONS, DEFAULT_CATEGORIES,
@@ -134,9 +133,3 @@ def build_feature_row(raw_input: dict, module_stats: dict | None) -> dict:
     row.update(skor)
 
     return row
-
-
-def bangun_dataframe_fitur(row_lengkap: dict) -> pd.DataFrame:
-    """Susun satu baris fitur menjadi DataFrame dengan urutan kolom yang benar."""
-    data = {k: [row_lengkap[k]] for k in FEATURE_ORDER}
-    return pd.DataFrame(data)
