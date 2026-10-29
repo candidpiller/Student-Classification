@@ -31,8 +31,7 @@ student-classification/
 │   ├── explanation.py            # EBM local explanation
 │   ├── assets.py                 # Registry gambar
 │   ├── validation.py             # Validasi input
-│   └── batch.py                  # Utilitas CSV non-UI (tidak dipakai halaman)
-├── assets/                       # 12 gambar dari notebook
+├── assets/                       # Gambar visualisasi dari notebook
 ├── models/                       # Artefak model
 ├── scripts/
 │   ├── generate_feature_ranges.py
@@ -117,7 +116,7 @@ Hanya ada dua halaman, tanpa navbar dan tanpa sidebar:
   daftar artefak model.
 
 Halaman prediksi batch dan dashboard model sudah dihapus atas permintaan
-pengguna. Logikanya (`src/batch.py`, `predict_students()`,
+pengguna. Logika yang tersisa (`predict_students()`,
 `get_global_importance()`) masih ada sebagai utilitas non-UI dan masih teruji,
 tetapi tidak dirender di mana pun.
 
@@ -160,7 +159,7 @@ tetapi tidak dirender di mana pun.
 - **Logika bisnis harus tetap bisa diuji tanpa browser.** Modul di `src/`
   tidak boleh memanggil `st.*` secara langsung, kecuali `src/artifacts.py`
   yang memakai `@st.cache_resource` / `@st.cache_data` untuk memuat artefak.
-  `src/batch.py`, `src/validation.py`, `src/form_config.py`, dan
+  `src/validation.py`, `src/form_config.py`, dan
   `src/form_state.py` tetap murni fungsi biasa.
 
 - **Nama artefak hanya boleh muncul di `src/config.py` dan `src/artifacts.py`.**

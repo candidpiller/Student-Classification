@@ -44,8 +44,9 @@ Nama file artefak didefinisikan sekali di `src/config.py`
 memakai konstanta itu untuk memuat artefak, jadi mengganti nama file cukup
 dilakukan di satu tempat.
 
-Folder `assets/` berisi 12 gambar visualisasi dari notebook pelatihan. Halaman
-tentang model tetap berjalan meskipun sebagian gambar tidak ada.
+Folder `assets/` berisi satu gambar visualisasi dari notebook pelatihan,
+`fig_kualitas_data_sintetis.png`, yang dirender di halaman tentang model. Gambar
+notebook lain tidak ikut dibawa karena tidak dipakai aplikasi.
 
 ### Regenerasi `feature_ranges.json`
 
@@ -171,7 +172,6 @@ student-classification/
 │   ├── explanation.py           # EBM local explanation
 │   ├── assets.py                # Registry gambar
 │   ├── validation.py            # Input validation
-│   └── batch.py                 # Utilitas CSV non-UI (tidak dipakai halaman)
 ├── models/                      # Artefak model
 ├── assets/                      # Gambar visualisasi
 ├── scripts/
@@ -180,9 +180,9 @@ student-classification/
 └── tests/
 ```
 
-> `src/batch.py`, `predict_students()`, dan `get_global_importance()` masih ada di
-> repo sebagai utilitas non-UI (masih teruji), tetapi tidak lagi dipakai halaman
-> mana pun setelah halaman batch dan dashboard dihapus.
+> `predict_students()` dan `get_global_importance()` masih ada di repo sebagai
+> utilitas non-UI (masih teruji), tetapi tidak lagi dipakai halaman mana pun
+> setelah halaman batch dan dashboard dihapus.
 
 ## Halaman aplikasi
 
