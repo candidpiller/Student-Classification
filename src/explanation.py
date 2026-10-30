@@ -16,7 +16,13 @@ INTERACTION_SEP = " & "
 
 
 def get_local_explanation(X_scaled: pd.DataFrame, prediction: int, top_n: int = 10) -> list[dict]:
-    """Mengambil top N fitur yang berkontribusi terhadap prediksi."""
+    """Mengambil top N fitur yang berkontribusi terhadap prediksi.
+
+    EBM bisa membagi kontribusi ke term interaksi (mis. "a & b"). Kalau term
+    itu ditampilkan apa adanya, fitur yang sama muncul dua kali: sekali sebagai
+    term tunggal, sekali di dalam interaksi. Skor interaksi karena itu
+    dijumlahkan ke tiap fitur penyusunnya, sehingga satu fitur = satu baris.
+    """
     model = load_model()
 
     try:
@@ -25,7 +31,15 @@ def get_local_explanation(X_scaled: pd.DataFrame, prediction: int, top_n: int = 
         names = list(data["names"])
         scores = list(data["scores"])
 
-        contrib = pd.DataFrame({"feature": names, "score": scores})
+        per_feature: dict[str, float] = defaultdict(float)
+        for name, score in zip(names, scores):
+            for part in str(name).split(INTERACTION_SEP):
+                per_feature[part.strip()] += float(score)
+
+        contrib = pd.DataFrame({
+            "feature": list(per_feature),
+            "score": list(per_feature.values()),
+        })
         contrib["abs_score"] = contrib["score"].abs()
         contrib = contrib.sort_values("abs_score", ascending=False).head(top_n)
 

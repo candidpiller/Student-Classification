@@ -49,6 +49,16 @@ class TestLocalExplanation:
     def test_bad_input_returns_empty_list(self):
         assert get_local_explanation(None, 0) == []
 
+    def test_no_duplicate_or_interaction_terms(self, risky_prediction):
+        """Term interaksi digabung ke fiturnya, jadi tidak ada fitur dobel."""
+        explanation = get_local_explanation(
+            risky_prediction["X_scaled"], risky_prediction["prediction"]
+        )
+        features = [item["feature"] for item in explanation]
+
+        assert len(features) == len(set(features))
+        assert all(" & " not in feature for feature in features)
+
 
 class TestGlobalImportance:
     def test_covers_every_model_feature(self):

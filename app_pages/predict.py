@@ -272,6 +272,10 @@ with result_holder:
 
     with probabilities:
         st.markdown("**Faktor yang berkontribusi terhadap prediksi**")
+        st.caption(
+            "Skor term interaksi model sudah digabung ke fitur penyusunnya, "
+            "jadi tiap fitur tampil satu baris."
+        )
         explanation = get_local_explanation(result["X_scaled"], result["prediction"])
 
         if explanation:
